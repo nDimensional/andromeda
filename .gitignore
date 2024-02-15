@@ -1,0 +1,8 @@
+.vscode/
+zig-out/
+zig-cache/
+SDK/
+data/
+
+node_modules/
+dist/

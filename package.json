@@ -1,0 +1,33 @@
+{
+	"private": true,
+	"name": "@ndimensional/andromeda",
+	"version": "0.0.0",
+	"type": "module",
+	"main": "index.js",
+	"scripts": {
+		"build": "esbuild src/index.tsx --bundle --format=iife --outfile=dist/index.js",
+		"dev": "esbuild src/index.tsx --bundle --format=iife --outfile=dist/index.js --watch",
+		"test": "echo \"Error: no test specified\" && exit 1"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/nDimensional/andromeda.git"
+	},
+	"author": "Joel Gustafson",
+	"license": "GPL-3.0-or-later",
+	"bugs": {
+		"url": "https://github.com/nDimensional/andromeda/issues"
+	},
+	"homepage": "https://github.com/nDimensional/andromeda#readme",
+	"devDependencies": {
+		"esbuild": "^0.20.0",
+		"typescript": "^5.3.3"
+	},
+	"dependencies": {
+		"@types/react": "^18.2.48",
+		"@types/react-dom": "^18.2.18",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
+		"use-debounce": "^10.0.0"
+	}
+}
