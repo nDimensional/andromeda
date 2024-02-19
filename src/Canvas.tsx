@@ -1,16 +1,8 @@
 import React, { useRef, useEffect, useCallback } from "react";
 import { useDebouncedCallback } from "use-debounce";
 
-import { getMinZ, render } from "./render.js";
+import { getScale, MIN_ZOOM, MAX_ZOOM, getMinZ, render } from "./render.js";
 import "./api.js";
-
-const MIN_ZOOM = 0;
-const MAX_ZOOM = 2400;
-// const MAX_ZOOM = 4000;
-
-function getScale(zoom: number) {
-	return 0.00000010125 * Math.pow(zoom, 2) - 0.0006525 * zoom + 1;
-}
 
 export interface CanvasProps {
 	width: number;
@@ -25,6 +17,9 @@ export interface CanvasProps {
 	zoom: number;
 	setZoom: (value: number) => void;
 }
+
+const devicePixelRatio = window.devicePixelRatio;
+console.log("devicePixelRatio", devicePixelRatio);
 
 export const Canvas: React.FC<CanvasProps> = (props) => {
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -55,8 +50,8 @@ export const Canvas: React.FC<CanvasProps> = (props) => {
 				offsetXRef.current,
 				offsetYRef.current,
 				scale,
-				widthRef.current,
-				heightRef.current,
+				devicePixelRatio * widthRef.current,
+				devicePixelRatio * heightRef.current,
 				ids
 			);
 
@@ -84,53 +79,72 @@ export const Canvas: React.FC<CanvasProps> = (props) => {
 	}, []);
 	4;
 
-	const handleScroll = useCallback((event: React.WheelEvent<HTMLCanvasElement>) => {
-		zoomRef.current += event.deltaY;
-		zoomRef.current = Math.max(zoomRef.current, MIN_ZOOM);
-		zoomRef.current = Math.min(zoomRef.current, MAX_ZOOM);
-		props.setZoom(zoomRef.current);
-	}, []);
-
-	const anchor = useRef<{ x: number; offsetX: number; y: number; offsetY: number } | null>(null);
-
-	const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-		anchor.current = {
-			x: event.clientX - props.offsetX,
-			offsetX: offsetXRef.current,
-			y: event.clientY - props.offsetY,
-			offsetY: offsetYRef.current,
-		};
-	}, []);
-
-	const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-		if (anchor.current === null) {
+	const handleWheel = useCallback((event: React.WheelEvent<HTMLCanvasElement>) => {
+		if (canvasRef.current === null) {
 			return;
 		}
 
-		const scale = getScale(zoomRef.current);
+		let zoom = zoomRef.current + event.deltaY;
+		zoom = Math.max(zoom, MIN_ZOOM);
+		zoom = Math.min(zoom, MAX_ZOOM);
+		if (zoom !== zoomRef.current) {
+			const oldScale = getScale(zoomRef.current);
+			const newScale = getScale(zoom);
+			props.setZoom(zoom);
+			zoomRef.current = zoom;
 
-		const x = event.clientX - props.offsetX;
-		const y = event.clientY - props.offsetY;
-		const dx = x - anchor.current.x;
-		const dy = y - anchor.current.y;
-		offsetXRef.current = anchor.current.offsetX + dx / scale;
-		offsetYRef.current = anchor.current.offsetY + dy / scale;
+			const clientX = event.clientX - canvasRef.current.offsetLeft;
+			const clientY = event.clientY - canvasRef.current.offsetTop;
+			const px = clientX - widthRef.current / 2;
+			const py = heightRef.current / 2 - clientY;
+			const oldX = px / oldScale;
+			const oldY = py / oldScale;
+			const newX = px / newScale;
+			const newY = py / newScale;
+			offsetXRef.current += devicePixelRatio * (newX - oldX);
+			props.setOffsetX(offsetXRef.current);
+			offsetYRef.current += devicePixelRatio * (newY - oldY);
+			props.setOffsetY(offsetYRef.current);
+		}
+	}, []);
+
+	const isDraggingRef = useRef(false);
+
+	const handleMouseEnter = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {}, []);
+	const handleMouseLeave = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+		if (isDraggingRef.current) {
+			isDraggingRef.current = false;
+			props.setOffsetX(offsetXRef.current);
+			props.setOffsetY(offsetYRef.current);
+		}
+	}, []);
+
+	const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+		isDraggingRef.current = true;
+	}, []);
+
+	const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
+		if (isDraggingRef.current) {
+			const scale = getScale(zoomRef.current);
+			offsetXRef.current += (devicePixelRatio * event.movementX) / scale;
+			offsetYRef.current -= (devicePixelRatio * event.movementY) / scale;
+		}
 	}, []);
 
 	const handleMouseUp = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-		anchor.current = null;
-		props.setOffsetX(offsetXRef.current);
-		props.setOffsetY(offsetYRef.current);
+		if (isDraggingRef.current) {
+			isDraggingRef.current = false;
+			props.setOffsetX(offsetXRef.current);
+			props.setOffsetY(offsetYRef.current);
+		}
 	}, []);
 
-	const handleClick = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {}, []);
-
 	const refreshIds = useDebouncedCallback(
-		(area: { minX: number; maxX: number; minY: number; maxY: number; minZ: number }) => {
-			idsRef.current = window.env.refresh(area.minX, area.maxX, area.minY, area.maxY, area.minZ);
+		(minX: number, maxX: number, minY: number, maxY: number, minZ: number) => {
+			idsRef.current = window.env.refresh(minX, maxX, minY, maxY, minZ);
 		},
 		100,
-		{ leading: true, maxWait: 200 }
+		{ leading: true, trailing: true, maxWait: 200 }
 	);
 
 	useEffect(() => {
@@ -141,29 +155,30 @@ export const Canvas: React.FC<CanvasProps> = (props) => {
 		heightRef.current = props.height;
 
 		const scale = getScale(props.zoom);
-		const w = props.width / 2;
-		const h = props.height / 2;
+		const w = (devicePixelRatio * props.width) / 2;
+		const h = (devicePixelRatio * props.height) / 2;
 		const maxX = w / scale - props.offsetX;
 		const minX = -w / scale - props.offsetX;
 		const maxY = h / scale - props.offsetY;
 		const minY = -h / scale - props.offsetY;
 		const minZ = getMinZ(scale);
-		refreshIds({ minX, maxX, minY, maxY, minZ });
+		refreshIds(minX, maxX, minY, maxY, minZ);
 	}, [props.zoom, props.offsetX, props.offsetY, props.width, props.height]);
 
 	return (
 		<canvas
-			autoFocus
+			style={{ width: "100%", height: "100%" }}
 			tabIndex={1}
-			width={props.width}
-			height={props.height}
+			width={devicePixelRatio * props.width}
+			height={devicePixelRatio * props.height}
 			ref={canvasRef}
 			onKeyDown={handleKeyDown}
-			onWheel={handleScroll}
+			onWheel={handleWheel}
+			onMouseEnter={handleMouseEnter}
+			onMouseLeave={handleMouseLeave}
 			onMouseDown={handleMouseDown}
 			onMouseMove={handleMouseMove}
 			onMouseUp={handleMouseUp}
-			onClick={handleClick}
 		></canvas>
 	);
 };

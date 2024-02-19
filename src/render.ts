@@ -5,6 +5,13 @@ import { map } from "./utils.js";
 // const minRadius = 1;
 const minRadius = 0.5;
 
+export const MIN_ZOOM = 0;
+export const MAX_ZOOM = 4800;
+
+export function getScale(zoom: number) {
+	return 256 / ((Math.pow(zoom + 1, 2) - 1) / 256 + 256);
+}
+
 export function getMinZ(scale: number) {
 	const mass = map(3, 50, 0, 80, minRadius / scale);
 	if (mass < 0) {
@@ -26,7 +33,7 @@ function project(
 	width: number,
 	height: number
 ): [number, number] {
-	return [(x + offsetX) * scale + width / 2, (y + offsetY) * scale + height / 2];
+	return [(x + offsetX) * scale + width / 2, height / 2 - (y + offsetY) * scale];
 }
 
 export function render(

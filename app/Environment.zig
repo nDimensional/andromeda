@@ -35,7 +35,6 @@ runner: ?std.Thread = null,
 
 pub fn init(env: *Environment, allocator: std.mem.Allocator, path: [*:0]const u8) !void {
     env.store = try Store.init(allocator, path);
-    env.store.randomize(200);
 
     env.timer = try std.time.Timer.start();
 
