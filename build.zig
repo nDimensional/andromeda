@@ -7,6 +7,9 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // const sqlite = b.dependency("sqlite", .{ .SQLITE_ENABLE_RTREE = true });
+    const ultralight = b.dependency("ultralight", .{ .SDK = @as([]const u8, "SDK") });
+
     // const exe = b.addExecutable(.{
     //     .name = "andromeda",
     //     .root_source_file = LazyPath.relative("./exe/main.zig"),
@@ -22,19 +25,16 @@ pub fn build(b: *std.Build) !void {
 
     const exe = try mach.CoreApp.init(b, mach_dep.builder, .{
         .name = "andromeda",
-        .src = "exe/main.zig",
+        .src = "exe/App.zig",
         .target = target,
         .optimize = optimize,
-        .deps = &[_]std.Build.Module.Import{},
+        .deps = &.{.{ .name = "ul", .module = ultralight.module("ul") }},
     });
 
     if (b.args) |args| exe.run.addArgs(args);
 
     const run = b.step("run", "Run the app");
     run.dependOn(&exe.run.step);
-
-    // const sqlite = b.dependency("sqlite", .{ .SQLITE_ENABLE_RTREE = true });
-    // const ultralight = b.dependency("ultralight", .{ .SDK = @as([]const u8, "SDK") });
 
     // const app = b.addExecutable(.{
     //     .name = "andromeda",

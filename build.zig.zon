@@ -7,25 +7,16 @@
         "dist",
         "build.zig",
         "build.zig.zon",
-        "README.md",
     },
     .dependencies = .{
         .ultralight = .{
-            .url = "https://github.com/nDimensional/zig-ultralight/archive/c0e59fab938bad77e9cc7a67a86a722f331ffb40.tar.gz",
-            .hash = "1220d3bf58a01cc78fd7200e44cb0cb57978e845e50fa00f2214119b35ff16a51ee2",
+            .url = "https://github.com/nDimensional/zig-ultralight/archive/abe2951c3c25bb0b520378d244140af8ae7c4cea.tar.gz",
+            .hash = "1220576678f0870a6e4eba016680f8e755319435485c5182868fd02aa97b7dba6c0f",
         },
         .sqlite = .{
-            .url = "https://github.com/nDimensional/zig-sqlite/archive/0068f09a819554f1d9916474e4c851fca167ac28.tar.gz",
-            .hash = "122045fa548c2a45965ecf3be834d6f2003247c36fc3b2c6fddd949e7a4c7295118c",
+            .url = "https://github.com/nDimensional/zig-sqlite/archive/refs/tags/v0.0.5.tar.gz",
+            .hash = "12202bf2ce3457dc16f5ee146677efff040f236f3420bd82c22197912d6261c6f387",
         },
-        // .chan = .{
-        //     .url = "https://github.com/nDimensional/zig-chan/archive/abf826bda49205d1b597c446b2b84cdf74c14354.tar.gz",
-        //     .hash = "1220627c215704e253f2b1559d12f38e034a4328d762afa6e632affc1eacbf7b0c50",
-        // },
-        // .mach = .{
-        //     .url = "https://pkg.machengine.org/mach/f42135795afaf52307f3a2a8757462fd8efa71ac.tar.gz",
-        //     .hash = "12208fd50c06eaa0a88a489303da7ed99fb4fea839b6b75a10990d014aadc638c2d0",
-        // },
         .mach = .{
             .url = "https://pkg.machengine.org/mach/279290bbf2f1adab0af00323280a07d6bfff47a5.tar.gz",
             .hash = "1220ba5472217ef81455b19d540967049bbfaf768b30d04534865707e907ee1c4aec",

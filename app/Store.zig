@@ -53,7 +53,7 @@ temperature: f32 = 0.1,
 timer: std.time.Timer,
 
 pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
-    const db = try sqlite.Database.init(.{ .path = path, .create = false });
+    const db = try sqlite.Database.open(.{ .path = path, .create = false });
 
     const update = try db.prepare(UpdateParams, void,
         \\ UPDATE atlas SET minX = :x, maxX = :x, minY = :y, maxY = :y WHERE idx = :idx
@@ -158,9 +158,9 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
 }
 
 pub fn deinit(self: Store) void {
-    self.update.deinit();
-    self.select_ids.deinit();
-    self.db.deinit();
+    self.update.finalize();
+    self.select_ids.finalize();
+    self.db.close();
 
     self.ids.deinit();
 
