@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) !void {
 
     // const app = b.addExecutable(.{
     //     .name = "andromeda",
-    //     .root_source_file = LazyPath.relative("./app/main.zig"),
+    //     .root_source_file = b.path("./app/main.zig"),
     //     .target = target,
     //     .optimize = optimize,
     // });

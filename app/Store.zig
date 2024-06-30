@@ -82,7 +82,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
 
     {
         const count_edges = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM edges");
-        defer count_edges.deinit();
+        defer count_edges.finalize();
 
         try count_edges.bind(.{});
         if (try count_edges.step()) |result| {
@@ -96,7 +96,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
     {
         const Edge = struct { source: u32, target: u32 };
         const select_edges = try store.db.prepare(struct {}, Edge, "SELECT source, target FROM edges");
-        defer select_edges.deinit();
+        defer select_edges.finalize();
 
         try select_edges.bind(.{});
         defer select_edges.reset();
@@ -110,7 +110,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
 
     {
         const count_nodes = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM nodes");
-        defer count_nodes.deinit();
+        defer count_nodes.finalize();
 
         try count_nodes.bind(.{});
         defer count_nodes.reset();
@@ -129,7 +129,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
         const select_nodes = try store.db.prepare(struct {}, Node,
             \\ SELECT idx, minX AS x, minY AS y, minZ AS incoming_degree FROM atlas
         );
-        defer select_nodes.deinit();
+        defer select_nodes.finalize();
 
         try select_nodes.bind(.{});
         defer select_nodes.reset();
@@ -348,7 +348,7 @@ pub fn save(self: *Store) !void {
 
     {
         const begin = try self.db.prepare(struct {}, void, "BEGIN TRANSACTION");
-        defer begin.deinit();
+        defer begin.finalize();
         try begin.exec(.{});
     }
 
@@ -359,7 +359,7 @@ pub fn save(self: *Store) !void {
 
     {
         const commit = try self.db.prepare(struct {}, void, "COMMIT TRANSACTION");
-        defer commit.deinit();
+        defer commit.finalize();
         try commit.exec(.{});
     }
 }
