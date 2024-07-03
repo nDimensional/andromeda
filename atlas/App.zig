@@ -3,20 +3,18 @@ const mach = @import("mach");
 const core = mach.core;
 const gpu = mach.gpu;
 
-const ul = @import("ul");
-
-// const WebGPUSurface = @import("WebGPUSurface.zig");
-
 pub const App = @This();
+
+const allocator = std.heap.c_allocator;
+
+const Config = @import("Config.zig");
+const Store = @import("Store.zig");
 
 const Point = @Vector(2, f32);
 const Body = packed struct { mass: f32 };
 
 const MAX_ZOOM = 2400;
 const MIN_ZOOM = 0;
-
-const panel_width = 640;
-const panel_height = 480;
 
 const device_pixel_ratio = 2;
 
@@ -53,29 +51,16 @@ const vertex_buffer_size = vertex_buffer_data.len * @sizeOf(Point);
 const index_buffer_data: []const u16 = &.{ 0, 1, 2, 2, 0, 3 };
 const index_buffer_size = index_buffer_data.len * @sizeOf(u16);
 
-config: ul.Ultralight.Config,
-renderer: ul.Ultralight.Renderer,
-view_config: ul.Ultralight.View.Config,
-view: ul.Ultralight.View,
-surface: ul.Ultralight.Surface,
+config: Config,
+store: Store,
 
 title_timer: core.Timer,
-node_count: u32,
 
 node_pipeline: *gpu.RenderPipeline,
 node_pipeline_layout: *gpu.PipelineLayout,
 
 node_bind_group: *gpu.BindGroup,
 node_bind_group_layout: *gpu.BindGroupLayout,
-
-panel_pipeline: *gpu.RenderPipeline,
-panel_pipeline_layout: *gpu.PipelineLayout,
-
-panel_bind_group: *gpu.BindGroup,
-panel_bind_group_layout: *gpu.BindGroupLayout,
-
-texture: *gpu.Texture,
-sampler: *gpu.Sampler,
 
 texture_view: *gpu.TextureView,
 
@@ -91,53 +76,11 @@ mouse: core.Position,
 zoom: f32,
 
 pub fn init(app: *App) !void {
-    // ul.Ultralight.Platform.setFileSystem(ul.Ultralight.Platform.filesystem);
-    ul.Ultralight.Platform.enablePlatformFileSystem("/Users/joelgustafson/Projects/andromeda");
-    ul.Ultralight.Platform.enablePlatformFontLoader();
-    ul.Ultralight.Platform.setLogger(ul.Ultralight.Platform.logger);
+    app.config = try Config.parse(allocator);
 
-    app.config = ul.Ultralight.Config.create();
-    app.config.setResourcePathPrefix("SDK/resources/");
+    std.log.info("opening database {s}", .{app.config.path});
 
-    app.renderer = ul.Ultralight.Renderer.create(app.config);
-    app.view_config = ul.Ultralight.View.Config.create();
-    app.view = ul.Ultralight.View.create(app.renderer, panel_width * device_pixel_ratio, panel_height * device_pixel_ratio, app.view_config, null);
-
-    app.view.setDeviceScale(device_pixel_ratio);
-    app.view.setDOMReadyCallback(App, app, &onDOMReady);
-    app.view.setBeginLoadingCallback(App, app, &onBeginLoading);
-    app.view.setFinishLoadingCallback(App, app, &onFinishLoading);
-    app.view.setFailLoadingCallback(App, app, &onFailLoading);
-    app.view.setConsoleMessageCallback(App, app, &onConsoleMessage);
-
-    app.surface = app.view.getSurface();
-    // app.surface.clearDirtyBounds();
-
-    // app.view.loadURL("file:///Users/joelgustafson/Projects/andromeda/assets/app.html");
-    app.view.loadHTML(
-        \\<!DOCTYPE html>
-        \\<html>
-        \\  <head>
-        \\    <script>console.log("JFKLDSJFKL")</script>
-        \\  </head>
-        \\  <body>
-        \\    <h1>HELLO WORLD</h1>
-        \\    <hr />
-        \\    <ul>
-        \\      <li>a list</li>
-        \\      <li>in HTML!</li>
-        \\    </ul>
-        \\  </body>
-        \\</html>
-    );
-
-    {
-        const pixels = app.surface.lockPixels();
-        defer app.surface.unlockPixels();
-
-        std.log.info("pixels: {any} ({d})", .{ pixels.ptr, pixels.len });
-        // std.log.info("pixel data: {s}", .{std.fmt.fmtSliceHexLower(pixels)});
-    }
+    app.store = try Store.init(allocator, app.config.path);
 
     try core.init(.{});
 
@@ -184,35 +127,35 @@ pub fn init(app: *App) !void {
         });
     }
 
-    var positions = [_]Point{
-        .{ -100, 100 },
-        .{ 0, 100 },
-        .{ 100, 100 },
-        .{ -100, 0 },
-        .{ 0, 0 },
-        .{ 100, 0 },
-        .{ -100, -100 },
-        .{ 0, -100 },
-        .{ 100, -100 },
-    };
+    // var positions = [_]Point{
+    //     .{ -100, 100 },
+    //     .{ 0, 100 },
+    //     .{ 100, 100 },
+    //     .{ -100, 0 },
+    //     .{ 0, 0 },
+    //     .{ 100, 0 },
+    //     .{ -100, -100 },
+    //     .{ 0, -100 },
+    //     .{ 100, -100 },
+    // };
 
-    app.node_count = positions.len;
+    // app.node_count = positions.len;
 
     // Position buffer
     {
         app.position_buffer = core.device.createBuffer(&.{
             .label = "position_buffer",
             .usage = .{ .storage = true, .copy_src = true },
-            .size = app.node_count * @sizeOf(Point),
+            .size = app.store.node_count * @sizeOf(Point),
             .mapped_at_creation = .true,
         });
 
         defer app.position_buffer.unmap();
 
-        const map = app.position_buffer.getMappedRange(Point, 0, app.node_count) orelse
+        const map = app.position_buffer.getMappedRange(Point, 0, app.store.node_count) orelse
             @panic("failed to get position buffer map");
 
-        @memcpy(map, &positions);
+        @memcpy(map, app.store.positions);
     }
 
     // Node buffer
@@ -220,13 +163,13 @@ pub fn init(app: *App) !void {
         app.node_buffer = core.device.createBuffer(&.{
             .label = "node_buffer",
             .usage = .{ .storage = true, .copy_src = true },
-            .size = app.node_count * @sizeOf(Body),
+            .size = app.store.node_count * @sizeOf(Body),
             .mapped_at_creation = .true,
         });
 
         defer app.node_buffer.unmap();
 
-        const map = app.node_buffer.getMappedRange(Body, 0, app.node_count) orelse
+        const map = app.node_buffer.getMappedRange(Body, 0, app.store.node_count) orelse
             @panic("failed to get node buffer map");
 
         @memset(map, std.mem.zeroes(Body));
@@ -245,9 +188,6 @@ pub fn init(app: *App) !void {
         .label = "node_bind_group",
         .layout = app.node_bind_group_layout,
         .entries = &.{
-            // gpu.BindGroup.Entry.buffer(0, app.param_buffer, 0, app.param_buffer.getSize(), @sizeOf(Params)),
-            // gpu.BindGroup.Entry.buffer(1, app.position_buffer, 0, app.position_buffer.getSize(), @sizeOf(Point)),
-            // gpu.BindGroup.Entry.buffer(2, app.node_buffer, 0, app.node_buffer.getSize(), @sizeOf(Body)),
             gpu.BindGroup.Entry.buffer(0, app.param_buffer, 0, app.param_buffer.getSize()),
             gpu.BindGroup.Entry.buffer(1, app.position_buffer, 0, app.position_buffer.getSize()),
             gpu.BindGroup.Entry.buffer(2, app.node_buffer, 0, app.node_buffer.getSize()),
@@ -303,59 +243,6 @@ pub fn init(app: *App) !void {
         }),
     });
 
-    app.sampler = core.device.createSampler(null);
-    app.texture = core.device.createTexture(&gpu.Texture.Descriptor.init(.{
-        .label = "texture",
-        .usage = .{ .texture_binding = true, .copy_dst = true },
-        .format = .bgra8_unorm,
-        .size = .{ .width = panel_width * device_pixel_ratio, .height = panel_height * device_pixel_ratio },
-    }));
-
-    app.panel_bind_group_layout = core.device.createBindGroupLayout(&gpu.BindGroupLayout.Descriptor.init(.{
-        .label = "panel_bind_group_layout",
-        .entries = &.{
-            gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true, .fragment = true }, .uniform, false, 0),
-            gpu.BindGroupLayout.Entry.sampler(1, .{ .fragment = true }, .filtering),
-            gpu.BindGroupLayout.Entry.texture(2, .{ .fragment = true }, .float, .dimension_2d, false),
-        },
-    }));
-
-    app.texture_view = app.texture.createView(null);
-
-    app.panel_bind_group = core.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
-        .label = "panel_bind_group",
-        .layout = app.panel_bind_group_layout,
-        .entries = &.{
-            // gpu.BindGroup.Entry.buffer(0, app.param_buffer, 0, app.param_buffer.getSize(), @sizeOf(Params)),
-            gpu.BindGroup.Entry.buffer(0, app.param_buffer, 0, app.param_buffer.getSize()),
-            gpu.BindGroup.Entry.sampler(1, app.sampler),
-            gpu.BindGroup.Entry.textureView(2, app.texture_view),
-        },
-    }));
-
-    app.panel_pipeline_layout = core.device.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(.{
-        .label = "panel_pipeline_layout",
-        .bind_group_layouts = &.{app.panel_bind_group_layout},
-    }));
-
-    const panel_shader_module = core.device.createShaderModuleWGSL("panel.wgsl", @embedFile("panel.wgsl"));
-    defer panel_shader_module.release();
-
-    app.panel_pipeline = core.device.createRenderPipeline(&.{
-        .label = "panel_pipeline",
-        .layout = app.panel_pipeline_layout,
-        .vertex = gpu.VertexState.init(.{
-            .module = panel_shader_module,
-            .entry_point = "vertex_main",
-            .buffers = &.{vertex_buffer_layout},
-        }),
-        .fragment = &gpu.FragmentState.init(.{
-            .module = panel_shader_module,
-            .entry_point = "frag_main",
-            .targets = &.{color_target},
-        }),
-    });
-
     app.title_timer = try core.Timer.start();
     app.anchor = null;
     app.zoom = 0;
@@ -376,25 +263,13 @@ pub fn init(app: *App) !void {
 }
 
 pub fn deinit(app: *App) void {
-    app.view.destroy();
-    app.view_config.destroy();
-    app.renderer.destroy();
-    app.config.destroy();
+    app.config.deinit();
+    app.store.deinit();
 
     app.node_pipeline.release();
     app.node_pipeline_layout.release();
     app.node_bind_group.release();
     app.node_bind_group_layout.release();
-
-    app.panel_pipeline.release();
-    app.panel_pipeline_layout.release();
-    app.panel_bind_group.release();
-    app.panel_bind_group_layout.release();
-
-    app.texture.release();
-    app.sampler.release();
-
-    app.texture_view.release();
 
     app.param_buffer.release();
     app.index_buffer.release();
@@ -513,13 +388,7 @@ pub fn update(app: *App) !bool {
         pass.setBindGroup(0, app.node_bind_group, null);
         pass.setVertexBuffer(0, app.vertex_buffer, 0, gpu.whole_size);
         pass.setIndexBuffer(app.index_buffer, .uint16, 0, gpu.whole_size);
-        pass.drawIndexed(index_buffer_data.len, app.node_count, 0, 0, 0);
-
-        pass.setPipeline(app.panel_pipeline);
-        pass.setBindGroup(0, app.panel_bind_group, null);
-        pass.setVertexBuffer(0, app.vertex_buffer, 0, gpu.whole_size);
-        pass.setIndexBuffer(app.index_buffer, .uint16, 0, gpu.whole_size);
-        pass.drawIndexed(index_buffer_data.len, 1, 0, 0, 0);
+        pass.drawIndexed(index_buffer_data.len, @intCast(app.store.node_count), 0, 0, 0);
 
         pass.end();
     }
@@ -529,6 +398,7 @@ pub fn update(app: *App) !bool {
         defer command.release();
 
         core.queue.submit(&[_]*gpu.CommandBuffer{command});
+
         core.swap_chain.present();
     }
 
@@ -544,63 +414,6 @@ pub fn update(app: *App) !bool {
     return false;
 }
 
-pub fn updateMainThread(app: *App) !bool {
-    app.renderer.update();
-    app.renderer.render();
-
-    const bounds = app.surface.getDirtyBounds();
-    if (!bounds.isEmpty()) {
-        std.log.info("DIRTY BOUNDS ({any})", .{bounds});
-        const pixels = app.surface.lockPixels();
-        defer app.surface.unlockPixels();
-        defer app.surface.clearDirtyBounds();
-
-        core.queue.writeTexture(
-            &.{ .texture = app.texture },
-            &.{ .bytes_per_row = 4 * panel_width * device_pixel_ratio, .rows_per_image = panel_height * device_pixel_ratio },
-            &.{ .width = panel_width * device_pixel_ratio, .height = panel_height * device_pixel_ratio },
-            pixels,
-        );
-    }
-
-    return false;
-}
-
 fn getScale(zoom: f32) f32 {
     return 256 / ((std.math.pow(f32, zoom + 1, 2) - 1) / 256 + 256);
-}
-
-fn onDOMReady(app: *App, event: ul.Ultralight.View.DOMReadyEvent) void {
-    _ = app;
-    _ = event;
-    std.log.info("onDOMReady", .{});
-}
-
-fn onBeginLoading(app: *App, event: ul.Ultralight.View.BeginLoadingEvent) void {
-    _ = app;
-    std.log.info("onBeginLoading: {s}", .{event.url});
-}
-
-fn onFinishLoading(app: *App, event: ul.Ultralight.View.FinishLoadingEvent) void {
-    _ = app;
-    _ = event;
-    std.log.info("onFinishLoading", .{});
-}
-
-fn onFailLoading(app: *App, event: ul.Ultralight.View.FailLoadingEvent) void {
-    _ = app;
-    std.log.info("onFailLoading: [{s}] {s}", .{ event.error_domain, event.description });
-}
-
-fn onConsoleMessage(_: *App, event: ul.Ultralight.View.ConsoleMessageEvent) void {
-    const log = std.io.getStdOut().writer();
-    const err = switch (event.level) {
-        .Log => log.print("[console.log] {s}\n", .{event.message}),
-        .Warning => log.print("[console.warn] {s}\n", .{event.message}),
-        .Error => log.print("[console.error] {s}\n", .{event.message}),
-        .Debug => log.print("[console.debug] {s}\n", .{event.message}),
-        .Info => log.print("[console.info] {s}\n", .{event.message}),
-    };
-
-    err catch @panic("fjkdls");
 }

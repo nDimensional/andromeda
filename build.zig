@@ -1,21 +1,11 @@
 const std = @import("std");
-const LazyPath = std.Build.LazyPath;
-
 const mach = @import("mach");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // const sqlite = b.dependency("sqlite", .{ .SQLITE_ENABLE_RTREE = true });
-    const ultralight = b.dependency("ultralight", .{ .SDK = @as([]const u8, "SDK") });
-
-    // const exe = b.addExecutable(.{
-    //     .name = "andromeda",
-    //     .root_source_file = LazyPath.relative("./exe/main.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
+    const sqlite = b.dependency("sqlite", .{ .SQLITE_ENABLE_RTREE = true });
 
     const mach_dep = b.dependency("mach", .{
         .target = target,
@@ -23,40 +13,31 @@ pub fn build(b: *std.Build) !void {
         .core = true,
     });
 
-    const exe = try mach.CoreApp.init(b, mach_dep.builder, .{
-        .name = "andromeda",
-        .src = "exe/App.zig",
+    const atlas = try mach.CoreApp.init(b, mach_dep.builder, .{
+        .name = "andromeda-atlas",
+        .src = "atlas/App.zig",
         .target = target,
         .optimize = optimize,
-        .deps = &.{.{ .name = "ul", .module = ultralight.module("ul") }},
+        .deps = &.{.{ .name = "sqlite", .module = sqlite.module("sqlite") }},
     });
 
-    if (b.args) |args| exe.run.addArgs(args);
 
-    const run = b.step("run", "Run the app");
-    run.dependOn(&exe.run.step);
+    if (b.args) |args| atlas.run.addArgs(args);
 
-    // const app = b.addExecutable(.{
-    //     .name = "andromeda",
-    //     .root_source_file = b.path("./app/main.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
+    const run_atlas = b.step("run-atlas", "Run the atlas");
+    run_atlas.dependOn(&atlas.run.step);
 
-    // app.root_module.addImport("sqlite", sqlite.module("sqlite"));
-    // app.root_module.addImport("ul", ultralight.module("ul"));
+    const control_panel = b.addExecutable(.{
+        .name = "andromeda",
+        .root_source_file = b.path("./src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
-    // app.linkLibC();
-    // b.installArtifact(app);
+    control_panel.linkSystemLibrary("gtk4");
+    b.installArtifact(control_panel);
 
-    // const app_artifact = b.addRunArtifact(app);
-    // if (b.args) |args| {
-    //     for (args) |arg| {
-    //         std.log.info("WOW GOT ARG: {s}", .{arg});
-    //     }
-    //     app_artifact.addArgs(args);
-    // }
-
-    // const run = b.step("run", "Run the app");
-    // run.dependOn(&app_artifact.step);
+    const control_panel_artifact = b.addRunArtifact(control_panel);
+    const runcontrol_panel = b.step("run", "Run the control panel");
+    runcontrol_panel.dependOn(&control_panel_artifact.step);
 }

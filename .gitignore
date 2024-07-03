@@ -4,6 +4,3 @@
 zig-out/
 SDK/
 data/
-
-node_modules/
-dist/

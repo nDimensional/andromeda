@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <object class="GtkWindow" id="window">
+        <property name="title">Andromeda</property>
+        <property name="default_width">200</property>
+        <property name="default_height">300</property>
+
+        <child>
+            <object class="GtkBox" id="vbox">
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+                <property name="spacing">10</property>
+                <property name="margin-start">10</property>
+                <property name="margin-end">10</property>
+                <property name="margin-top">10</property>
+                <property name="margin-bottom">10</property>
+                <child>
+                    <object class="GtkBox" id="header_box">
+                        <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                        <property name="spacing">10</property>
+                        <child>
+                            <object id="save" class="GtkButton">
+                                <property name="icon-name">document-save-symbolic</property>
+                            </object>
+                        </child>
+                        <child>
+                            <object id="open" class="GtkButton">
+                                <property name="icon-name">document-open-symbolic</property>
+                            </object>
+                        </child>
+                    </object>
+                </child>
+
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Attraction</property>
+                    <property name="halign">GTK_ALIGN_START</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScale" id="attraction">
+                    <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                    <property name="adjustment">
+                      <object class="GtkAdjustment">
+                        <property name="lower">0</property>
+                        <property name="upper">100</property>
+                        <property name="step-increment">1</property>
+                        <property name="page-increment">10</property>
+                        <property name="value">50</property>
+                      </object>
+                    </property>
+                    <property name="draw-value">true</property>
+                    <property name="value-pos">GTK_POS_TOP</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Repulsion</property>
+                    <property name="halign">GTK_ALIGN_START</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScale" id="replulsion">
+                    <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                    <property name="adjustment">
+                      <object class="GtkAdjustment">
+                        <property name="lower">0</property>
+                        <property name="upper">100</property>
+                        <property name="step-increment">1</property>
+                        <property name="page-increment">10</property>
+                        <property name="value">50</property>
+                      </object>
+                    </property>
+                    <property name="draw-value">true</property>
+                    <property name="value-pos">GTK_POS_TOP</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Temperature</property>
+                    <property name="halign">GTK_ALIGN_START</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScale" id="temperature">
+                    <property name="orientation">GTK_ORIENTATION_HORIZONTAL</property>
+                    <property name="adjustment">
+                      <object class="GtkAdjustment">
+                        <property name="lower">0</property>
+                        <property name="upper">100</property>
+                        <property name="step-increment">1</property>
+                        <property name="page-increment">10</property>
+                        <property name="value">50</property>
+                      </object>
+                    </property>
+                    <property name="draw-value">true</property>
+                    <property name="value-pos">GTK_POS_TOP</property>
+                  </object>
+                </child>
+            </object>
+        </child>
+    </object>
+<!--
+    <menu id="app-menu">
+        <section>
+            <item>
+                <attribute name="label" translatable="yes">_New Window</attribute>
+                <attribute name="action">app.new</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_About Sunny</attribute>
+                <attribute name="action">app.about</attribute>
+            </item>
+            <item>
+                <attribute name="label" translatable="yes">_Quit</attribute>
+                <attribute name="action">app.quit</attribute>
+            </item>
+        </section>
+    </menu> -->
+
+</interface>

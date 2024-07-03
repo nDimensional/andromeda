@@ -2,15 +2,13 @@ const std = @import("std");
 
 const sqlite = @import("sqlite");
 
-// const ul = @import("ul");
-// const Context = ul.JavaScriptCore.Context;
 
 const Quadtree = @import("Quadtree.zig");
 const forces = @import("forces.zig");
 
 const Store = @This();
 
-const UpdateParams = struct { x: f32, ey: f32, idx: u32 };
+const UpdateParams = struct { x: f32, y: f32, idx: u32 };
 pub const AreaParams = struct { minX: f32, maxX: f32, minY: f32, maxY: f32, minZ: f32 };
 pub const AreaResult = struct { idx: u32 };
 
@@ -33,8 +31,6 @@ edge_count: usize = 0,
 source: []u32 = undefined,
 target: []u32 = undefined,
 positions: []@Vector(2, f32) = undefined,
-// x: []f32 = undefined,
-// y: []f32 = undefined,
 z: []f32 = undefined,
 
 min_y: f32 = 0,
@@ -121,8 +117,6 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
         }
     }
 
-    // store.x = try allocator.alloc(f32, store.node_count);
-    // store.y = try allocator.alloc(f32, store.node_count);
     store.positions = try allocator.alloc(@Vector(2, f32), store.node_count);
     store.z = try allocator.alloc(f32, store.node_count);
 
@@ -137,8 +131,6 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
         defer select_nodes.reset();
         while (try select_nodes.step()) |node| {
             const i = node.idx - 1;
-            // store.x[i] = node.x;
-            // store.y[i] = node.y;
             store.positions[i] = .{node.x, node.y};
             store.z[i] = node.incoming_degree;
 
@@ -171,31 +163,12 @@ pub fn deinit(self: Store) void {
 
     self.allocator.free(self.source);
     self.allocator.free(self.target);
-    // self.allocator.free(self.x);
-    // self.allocator.free(self.y);
     self.allocator.free(self.positions);
     self.allocator.free(self.z);
 
     self.allocator.free(self.node_forces);
     inline for (self.edge_forces) |edge_forces| self.allocator.free(edge_forces);
 }
-
-// pub fn inject(self: *Store, ctx: Context) !void {
-//     const global = ctx.getGlobal();
-
-//     ctx.setProperty(global, "node_count", ctx.makeNumber(@floatFromInt(self.node_count)));
-//     ctx.setProperty(global, "edge_count", ctx.makeNumber(@floatFromInt(self.edge_count)));
-
-//     ctx.setProperty(global, "source", try ctx.makeTypedArray(u32, self.source));
-//     ctx.setProperty(global, "target", try ctx.makeTypedArray(u32, self.target));
-//     ctx.setProperty(global, "x", try ctx.makeTypedArray(f32, self.x));
-//     ctx.setProperty(global, "y", try ctx.makeTypedArray(f32, self.y));
-//     ctx.setProperty(global, "z", try ctx.makeTypedArray(f32, self.z));
-
-//     ctx.setProperty(global, "attraction", ctx.makeNumber(self.attraction));
-//     ctx.setProperty(global, "repulsion", ctx.makeNumber(self.repulsion));
-//     ctx.setProperty(global, "temperature", ctx.makeNumber(self.temperature));
-// }
 
 pub fn getBoundingSize(self: Store) !f32 {
     const s = @max(@abs(self.min_x), @abs(self.max_x), @abs(self.min_y), @abs(self.max_y)) * 2;
@@ -207,13 +180,15 @@ pub fn randomize(self: *Store, s: u32) void {
     for (0..self.node_count) |i| {
         const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.node_count));
 
-        self.x[i] = @floatFromInt(random.uintLessThan(u32, s));
-        self.x[i] -= @floatFromInt(s / 2);
-        self.x[i] += p;
+        var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
+        x -= @floatFromInt(s / 2);
+        x += p;
 
-        self.y[i] = @floatFromInt(random.uintLessThan(u32, s));
-        self.y[i] -= @floatFromInt(s / 2);
-        self.y[i] += p;
+        var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
+        y -= @floatFromInt(s / 2);
+        y += p;
+
+        self.positions[i] = .{x, y};
     }
 }
 
@@ -277,13 +252,15 @@ pub fn tick(self: *Store) !f32 {
         sum += std.math.sqrt(@reduce(.Add, f * f));
 
         f *= temperature;
-        self.x[i] += f[0];
-        self.y[i] += f[1];
 
-        self.min_x = @min(self.min_x, self.x[i]);
-        self.max_x = @max(self.max_x, self.x[i]);
-        self.min_y = @min(self.min_y, self.y[i]);
-        self.max_y = @max(self.max_y, self.y[i]);
+        self.positions[i] += f;
+
+        const x = self.positions[i][0];
+        const y = self.positions[i][1];
+        self.min_x = @min(self.min_x, x);
+        self.max_x = @max(self.max_x, x);
+        self.min_y = @min(self.min_y, y);
+        self.max_y = @max(self.max_y, y);
 
         self.node_forces[i] = .{ 0, 0 };
         inline for (self.edge_forces) |edge_forces| edge_forces[i] = .{ 0, 0 };
@@ -300,8 +277,7 @@ fn updateEdgeForces(self: *Store, min: usize, max: usize, force: []@Vector(2, f3
 
         const s = self.source[i] - 1;
         const t = self.target[i] - 1;
-
-        const f = forces.getAttraction(self.attraction, .{ self.x[s], self.y[s] }, .{ self.x[t], self.y[t] });
+        const f = forces.getAttraction(self.attraction, self.positions[s], self.positions[t]);
 
         force[s] += f;
         force[t] -= f;
@@ -314,10 +290,11 @@ fn updateNodeForces(self: *Store, min: usize, max: usize, node_forces: []@Vector
             break;
         }
 
-        const p = @Vector(2, f32){ self.x[i], self.y[i] };
+        const p = self.positions[i];
         const mass = forces.getMass(self.z[i]);
 
-        for (self.quads) |tree| node_forces[i] += tree.getForce(self.repulsion, p, mass);
+        for (self.quads) |tree|
+            node_forces[i] += tree.getForce(self.repulsion, p, mass);
     }
 }
 
@@ -326,7 +303,7 @@ pub fn rebuildQuad(self: *Store, tree: *Quadtree) !void {
 
     var i: u32 = 0;
     while (i < self.node_count) : (i += 1) {
-        const p = @Vector(2, f32){ self.x[i], self.y[i] };
+        const p = self.positions[i];
         if (tree.area.contains(p)) {
             const mass = forces.getMass(self.z[i]);
             try tree.insert(i + 1, p, mass);
@@ -339,7 +316,7 @@ pub fn rebuildQuad(self: *Store, tree: *Quadtree) !void {
 fn getNodeForce(self: *Store, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
     var force = @Vector(2, f32){ 0, 0 };
     for (0..self.node_count) |i| {
-        force += forces.getRepulsion(self.repulsion, p, mass, .{ self.x[i], self.y[i] }, forces.getMass(self.z[i]));
+        force += forces.getRepulsion(self.repulsion, p, mass, self.positions[i], forces.getMass(self.z[i]));
     }
 
     return force;
@@ -358,7 +335,8 @@ pub fn save(self: *Store) !void {
 
     for (0..self.node_count) |i| {
         const idx: u32 = @intCast(i + 1);
-        try self.update.exec(.{ .x = self.x[i], .y = self.y[i], .idx = idx });
+        const p = self.positions[i];
+        try self.update.exec(.{ .x = p[0], .y = p[1], .idx = idx });
     }
 
     {
