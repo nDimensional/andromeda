@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="desktop-application">
+  <id>dev.ianjohnson.Nonograms</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>0BSD</project_license>
+  <name>Nonograms</name>
+  <summary>Solve nonogram puzzles</summary>
+  <url type="homepage">https://github.com/ianprime0509/nonograms</url>
+  <url type="bugtracker">https://github.com/ianprime0509/nonograms/issues</url>
+  <url type="vcs-browser">https://github.com/ianprime0509/nonograms</url>
+  <developer id="ianjohnson.dev">
+    <name>Ian Johnson</name>
+  </developer>
+</component>

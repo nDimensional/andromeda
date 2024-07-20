@@ -17,7 +17,7 @@ const Engine = @import("Engine.zig");
 pub const application_id = "dev.ianjohnson.Nonograms";
 const package = "nonograms";
 
-const TEMPLATE_PATH = "/Users/joelgustafson/Projects/andromeda/control-panel/data/ui/window.ui";
+const TEMPLATE_PATH = "/Users/joelgustafson/Projects/andromeda/control-panel/data/ui/window.xml";
 const EXECUTABLE_PATH = "/Users/joelgustafson/Projects/andromeda/zig-out/bin/andromeda-atlas";
 const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
 
