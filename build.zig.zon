@@ -9,17 +9,34 @@
         "build.zig.zon",
     },
     .dependencies = .{
-        .ultralight = .{
-            .url = "https://github.com/nDimensional/zig-ultralight/archive/e615f3f4998ad3a66680309cd60c2f4b220aebd9.tar.gz",
-            .hash = "12203835b13dca3f1be595261292b81fab1a4083a81310471c5ea29258c9ef971abf",
-        },
         .sqlite = .{
-            .url = "https://github.com/nDimensional/zig-sqlite/archive/refs/tags/v0.0.6.tar.gz",
-            .hash = "1220f0f52ef48372482404d6fe50ec95ca9c4f48edded58d8555381669f4cbd90eea",
+            .url = "https://github.com/nDimensional/zig-sqlite/archive/e30a30b99c4c8c57dfc7dffa29e3706253f04469.tar.gz",
+            .hash = "122097737716aa3e2e44b709dc76229462caa1bb617dec0787e96f75e159dc717bfa",
         },
         .mach = .{
             .url = "https://pkg.machengine.org/mach/316f2354d155d7fb706e6cfa1d09b7db8896b92f.tar.gz",
             .hash = "1220972c1b0fc6cf690f317715677441c4e9b0f6d1e807be9886c87b0471ca09080f",
+        },
+        .mbedtls = .{
+            .url = "https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v2.28.8.tar.gz",
+            .hash = "12200130d7fef0dd3b2d375c378c7dcd11f64eb64cd9ab1bc33397eaafa44e30bc65",
+        },
+        .nng = .{
+            .url = "https://github.com/nanomsg/nng/archive/refs/tags/v1.8.0.tar.gz",
+            .hash = "12209663cb709a7a07f25cabc04e1b6cde4f7f4710456a39d1854c3d8b71bc1a116f",
+        },
+
+        .xml = .{
+            .url = "git+https://github.com/ianprime0509/zig-xml?ref=main#0747fa10b28ade9a8516bc5b122dcad997bd8fa7",
+            .hash = "1220fcb9b8da8bcfdaa18c81678c6b5cf41d63a2bf9fde7551b4390279cc473a2520",
+        },
+        .gobject = .{
+            .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.2.0/bindings-gnome46.tar.zst",
+            .hash = "122072ebbd8a100c9e2f682cd130c3707a8441d1bba2c8f5f38111a23a2db1361de7",
+        },
+        .libintl = .{
+            .url = "git+https://github.com/ianprime0509/zig-libintl?ref=main#0c436aa63c31bb8ad5d7d59800638f784e1e04a5",
+            .hash = "1220e1f1576da3188a8749940f836cfb4f858ee3455660b05c67984ddc29cf63956e",
         },
     },
 }

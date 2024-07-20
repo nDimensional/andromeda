@@ -1,7 +1,10 @@
 const std = @import("std");
 
+pub const Point = @Vector(2, f32);
+pub const Force = @Vector(2, f32);
+
 /// Get the force exerted on A by B
-pub fn getRepulsion(repulsion: f32, a: @Vector(2, f32), a_mass: f32, b: @Vector(2, f32), b_mass: f32) @Vector(2, f32) {
+pub fn getRepulsion(repulsion: f32, a: Point, a_mass: f32, b: Point, b_mass: f32) Force {
     const delta = b - a;
 
     const norm = @reduce(.Add, delta * delta);
@@ -19,7 +22,7 @@ pub fn getRepulsion(repulsion: f32, a: @Vector(2, f32), a_mass: f32, b: @Vector(
 }
 
 /// Get the force exerted on S by T
-pub inline fn getAttraction(attraction: f32, s: @Vector(2, f32), t: @Vector(2, f32)) @Vector(2, f32) {
+pub inline fn getAttraction(attraction: f32, s: Point, t: Point) Force {
     var delta = t - s;
     delta *= @splat(attraction);
     return delta;

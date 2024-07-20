@@ -3,12 +3,15 @@ const mach = @import("mach");
 const core = mach.core;
 const gpu = mach.gpu;
 
+const nng = @import("nng");
+const sho = @import("shared-object");
+const c = @import("c.zig");
+
 pub const App = @This();
 
 const allocator = std.heap.c_allocator;
-
-const Config = @import("Config.zig");
-const Store = @import("Store.zig");
+const SHM_NAME = "ANDROMEDA";
+const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
 
 const Point = @Vector(2, f32);
 const Body = packed struct { mass: f32 };
@@ -51,8 +54,9 @@ const vertex_buffer_size = vertex_buffer_data.len * @sizeOf(Point);
 const index_buffer_data: []const u16 = &.{ 0, 1, 2, 2, 0, 3 };
 const index_buffer_size = index_buffer_data.len * @sizeOf(u16);
 
-config: Config,
-store: Store,
+// config: Config,
+// store: Store,
+node_count: u32,
 
 title_timer: core.Timer,
 
@@ -75,12 +79,17 @@ anchor: ?struct { pos: core.Position, offset: @Vector(2, f32) },
 mouse: core.Position,
 zoom: f32,
 
+reader: sho.Reader(SHM_NAME),
+positions: []const Point,
+socket: nng.Socket.SUB,
+
 pub fn init(app: *App) !void {
-    app.config = try Config.parse(allocator);
+    app.reader = try sho.Reader(SHM_NAME).init();
+    app.node_count = @intCast(app.reader.map.len / @sizeOf(Point));
 
-    std.log.info("opening database {s}", .{app.config.path});
-
-    app.store = try Store.init(allocator, app.config.path);
+    const positions_ptr = @as([*]const Point, @alignCast(@ptrCast(app.reader.data.ptr)));
+    const positions = positions_ptr[0..app.node_count];
+    app.positions = positions;
 
     try core.init(.{});
 
@@ -127,35 +136,21 @@ pub fn init(app: *App) !void {
         });
     }
 
-    // var positions = [_]Point{
-    //     .{ -100, 100 },
-    //     .{ 0, 100 },
-    //     .{ 100, 100 },
-    //     .{ -100, 0 },
-    //     .{ 0, 0 },
-    //     .{ 100, 0 },
-    //     .{ -100, -100 },
-    //     .{ 0, -100 },
-    //     .{ 100, -100 },
-    // };
-
-    // app.node_count = positions.len;
-
     // Position buffer
     {
         app.position_buffer = core.device.createBuffer(&.{
             .label = "position_buffer",
-            .usage = .{ .storage = true, .copy_src = true },
-            .size = app.store.node_count * @sizeOf(Point),
+            .usage = .{ .storage = true, .copy_src = true, .copy_dst = true },
+            .size = app.node_count * @sizeOf(Point),
             .mapped_at_creation = .true,
         });
 
         defer app.position_buffer.unmap();
 
-        const map = app.position_buffer.getMappedRange(Point, 0, app.store.node_count) orelse
+        const map = app.position_buffer.getMappedRange(Point, 0, app.node_count) orelse
             @panic("failed to get position buffer map");
 
-        @memcpy(map, app.store.positions);
+        @memcpy(map, positions);
     }
 
     // Node buffer
@@ -163,13 +158,13 @@ pub fn init(app: *App) !void {
         app.node_buffer = core.device.createBuffer(&.{
             .label = "node_buffer",
             .usage = .{ .storage = true, .copy_src = true },
-            .size = app.store.node_count * @sizeOf(Body),
+            .size = app.node_count * @sizeOf(Body),
             .mapped_at_creation = .true,
         });
 
         defer app.node_buffer.unmap();
 
-        const map = app.node_buffer.getMappedRange(Body, 0, app.store.node_count) orelse
+        const map = app.node_buffer.getMappedRange(Body, 0, app.node_count) orelse
             @panic("failed to get node buffer map");
 
         @memset(map, std.mem.zeroes(Body));
@@ -260,11 +255,15 @@ pub fn init(app: *App) !void {
     };
 
     core.setCursorShape(.pointing_hand);
+
+    app.socket = try nng.Socket.SUB.open();
+    try app.socket.set("sub:subscribe", "");
+    try app.socket.dial(SOCKET_URL);
 }
 
 pub fn deinit(app: *App) void {
-    app.config.deinit();
-    app.store.deinit();
+    app.socket.close();
+    app.reader.deinit();
 
     app.node_pipeline.release();
     app.node_pipeline_layout.release();
@@ -363,6 +362,16 @@ pub fn update(app: *App) !bool {
         }
     }
 
+    var dirty = false;
+    while (try app.recv()) |count| {
+        std.log.info("[atlas] recv {d}", .{count});
+        dirty = true;
+    }
+
+    if (dirty) {
+        core.queue.writeBuffer(app.position_buffer, 0, app.positions);
+    }
+
     core.queue.writeBuffer(app.param_buffer, 0, @as([]const Params, &.{app.params}));
 
     const encoder = core.device.createCommandEncoder(null);
@@ -388,7 +397,7 @@ pub fn update(app: *App) !bool {
         pass.setBindGroup(0, app.node_bind_group, null);
         pass.setVertexBuffer(0, app.vertex_buffer, 0, gpu.whole_size);
         pass.setIndexBuffer(app.index_buffer, .uint16, 0, gpu.whole_size);
-        pass.drawIndexed(index_buffer_data.len, @intCast(app.store.node_count), 0, 0, 0);
+        pass.drawIndexed(index_buffer_data.len, @intCast(app.node_count), 0, 0, 0);
 
         pass.end();
     }
@@ -412,6 +421,20 @@ pub fn update(app: *App) !bool {
     }
 
     return false;
+}
+
+fn recv(app: *App) !?u64 {
+    const msg = app.socket.recv(.{ .NONBLOCK = true }) catch |err| switch (err) {
+        error.AGAIN => return null,
+        else => return err,
+    };
+
+    const body = msg.body();
+    if (body.len != 8) {
+        return error.INVAL;
+    }
+
+    return std.mem.readInt(u64, body[0..8], .big);
 }
 
 fn getScale(zoom: f32) f32 {
