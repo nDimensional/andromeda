@@ -41,18 +41,15 @@ pub const Options = struct {
 };
 
 pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
-    const db = try sqlite.Database.open(.{ .path = options.path, .create = false });
-
-    const update = try db.prepare(UpdateParams, void,
-        \\ UPDATE atlas SET minX = :x, maxX = :x, minY = :y, maxY = :y WHERE idx = :idx
-    );
-
     const store = try allocator.create(Store);
     store.allocator = allocator;
     store.progress = Progress { .progress_bar = options.progress_bar };
-    store.db = db;
 
-    store.update = update;
+    store.db = try sqlite.Database.open(.{ .path = options.path, .create = false });
+
+    store.update = try store.db.prepare(UpdateParams, void,
+        \\ UPDATE nodes SET x = :x, y = :y WHERE idx = :idx
+    );
 
     {
         const count_edges = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM edges");
@@ -130,14 +127,16 @@ const LOADING_NODES = "Loading nodes";
 fn loadNodes(self: *Store, cancellable: ?*gio.Cancellable) !void {
     _ = cancellable;
 
+    std.log.info("loading nodes...", .{});
     self.progress.setText(LOADING_NODES);
 
     const total: f64 = @floatFromInt(self.node_count);
 
-    const Node = struct { idx: u32, x: f32, y: f32, incoming_degree: f32 };
+    const Node = struct { idx: u32, incoming_degree: u32, x: f32, y: f32 };
     const select_nodes = try self.db.prepare(struct {}, Node,
-        \\ SELECT idx, minX AS x, minY AS y, minZ AS incoming_degree FROM atlas
+        \\ SELECT idx, incoming_degree, x, y FROM nodes
     );
+
     defer select_nodes.finalize();
 
     try select_nodes.bind(.{});
@@ -147,7 +146,7 @@ fn loadNodes(self: *Store, cancellable: ?*gio.Cancellable) !void {
     while (try select_nodes.step()) |node| : (j += 1) {
         const i = node.idx - 1;
         self.positions[i] = .{ node.x, node.y };
-        self.z[i] = node.incoming_degree;
+        self.z[i] = @floatFromInt(node.incoming_degree);
 
         if (j % batch_size == 0) {
             const value = @as(f64, @floatFromInt(j)) / total;
@@ -161,6 +160,7 @@ const LOADING_EDGES = "Loading edges";
 fn loadEdges(self: *Store, cancellable: ?*gio.Cancellable) !void {
     _ = cancellable;
 
+    std.log.info("loading edges...", .{});
     self.progress.setText(LOADING_EDGES);
 
     const total: f64 = @floatFromInt(self.edge_count);

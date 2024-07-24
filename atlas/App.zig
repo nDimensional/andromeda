@@ -363,10 +363,7 @@ pub fn update(app: *App) !bool {
     }
 
     var dirty = false;
-    while (try app.recv()) |count| {
-        std.log.info("[atlas] recv {d}", .{count});
-        dirty = true;
-    }
+    while (try app.recv()) |_| dirty = true;
 
     if (dirty) {
         core.queue.writeBuffer(app.position_buffer, 0, app.positions);

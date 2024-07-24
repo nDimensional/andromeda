@@ -9,5 +9,6 @@
     <file preprocess="xml-stripblanks">ui/color-picker.ui</file>
     <file preprocess="xml-stripblanks">ui/view.ui</file> -->
     <file preprocess="xml-stripblanks">ui/window.xml</file>
+    <file preprocess="xml-stripblanks">ui/LogScale.xml</file>
   </gresource>
 </gresources>

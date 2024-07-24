@@ -42,7 +42,7 @@ struct VSOutput {
     let c = nodes[i];
     vsOut.vertex = grid_space_to_ndc(c + (v * r));
     vsOut.center = grid_space_to_clip_space(c) * params.pixel_ratio;
-    vsOut.radius = r * params.scale * params.pixel_ratio;
+    vsOut.radius = max(r * params.scale * params.pixel_ratio, 2);
 
     return vsOut;
 }

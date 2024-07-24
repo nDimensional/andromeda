@@ -2,4 +2,3 @@
 .vscode/
 .zig-cache/
 zig-out/
-SDK/

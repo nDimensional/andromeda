@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="LogScale" parent="GtkWidget">
+    <child>
+      <object class="GtkBox" id="box">
+        <property name="orientation">horizontal</property>
+        <property name="spacing">4</property>
+        <property name="hexpand">true</property>
+        <child>
+          <object class="GtkScale" id="scale">
+            <property name="orientation">horizontal</property>
+            <property name="halign">fill</property>
+            <property name="hexpand">true</property>
+            <property name="draw-value">true</property>
+            <property name="value-pos">top</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
+            <property name="spacing">4</property>
+            <property name="vexpand">false</property>
+            <property name="valign">center</property>
+            <child>
+              <object class="GtkButton" id="scale_dec">
+                <property name="icon-name">list-remove-symbolic</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="scale_inc">
+                <property name="icon-name">list-add-symbolic</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

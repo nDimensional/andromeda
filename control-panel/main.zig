@@ -13,6 +13,7 @@ const c_allocator = std.heap.c_allocator;
 const Progress = @import("Progress.zig");
 const Store = @import("Store.zig");
 const Engine = @import("Engine.zig");
+const LogScale = @import("LogScale.zig").LogScale;
 
 pub const application_id = "dev.ianjohnson.Nonograms";
 const package = "nonograms";
@@ -72,12 +73,12 @@ const Application = extern struct {
     };
 };
 
+const Status = enum { Stopped, Started };
+
 const ApplicationWindow = extern struct {
     parent_instance: Parent,
 
     pub const Parent = adw.ApplicationWindow;
-
-    pub const Status = enum { Stopped, Started };
 
     const Private = struct {
         store: ?*Store,
@@ -90,15 +91,18 @@ const ApplicationWindow = extern struct {
         window_title: *adw.WindowTitle,
         stack: *gtk.Stack,
 
+        attraction: *LogScale,
+        repulsion: *LogScale,
+        temperature: *LogScale,
+
         save_button: *gtk.Button,
         open_button: *gtk.Button,
+        tick_button: *gtk.Button,
         start_button: *gtk.Button,
         stop_button: *gtk.Button,
         view_button: *gtk.Button,
+        randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
-        attraction_scale: *gtk.Scale,
-        repulsion_scale: *gtk.Scale,
-        temperature_scale: *gtk.Scale,
 
         var offset: c_int = 0;
     };
@@ -137,17 +141,41 @@ const ApplicationWindow = extern struct {
         _ = gtk.Button.signals.clicked.connect(win.private().open_button, *ApplicationWindow, &handleOpenClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().save_button, *ApplicationWindow, &handleSaveClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().stop_button, *ApplicationWindow, &handleStopClicked, win, .{});
+        _ = gtk.Button.signals.clicked.connect(win.private().tick_button, *ApplicationWindow, &handleTickClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().view_button, *ApplicationWindow, &handleViewClicked, win, .{});
+        _ = gtk.Button.signals.clicked.connect(win.private().randomize_button, *ApplicationWindow, &handleRandomizeClicked, win, .{});
 
-        _ = gtk.Range.signals.value_changed.connect(win.private().attraction_scale.as(gtk.Range), *ApplicationWindow, &handleAttractionValueChanged, win, .{});
-        _ = gtk.Range.signals.value_changed.connect(win.private().repulsion_scale.as(gtk.Range), *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
-        _ = gtk.Range.signals.value_changed.connect(win.private().temperature_scale.as(gtk.Range), *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
+        _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
+        _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
+        _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
+
+
+        const attraction = 0.0001;
+        const repulsion = 100.0;
+        const temperature = 0.1;
+
+        win.private().attraction.setValue(attraction * 1000);
+        win.private().repulsion.setValue(repulsion * 1000);
+        win.private().temperature.setValue(temperature * 1000);
+
+        // const attraction_adjustment = gtk.Adjustment.new(0, 0, 100, 1, 10, 0);
+        // attraction_range.setAdjustment(attraction_adjustment);
+        // win.private().attraction_adjustment = attraction_adjustment;
+
+        // const repulsion_adjustment = gtk.Adjustment.new(0, 0, 100, 1, 10, 0);
+        // repulsion_range.setAdjustment(repulsion_adjustment);
+        // win.private().repulsion_adjustment = repulsion_adjustment;
+
+        // const temperature_adjustment = gtk.Adjustment.new(0, 0, 100, 1, 10, 0);
+        // temperature_range.setAdjustment(temperature_adjustment);
+        // win.private().temperature_adjustment = temperature_adjustment;
 
         win.private().save_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
+        win.private().tick_button.as(gtk.Widget).setSensitive(0);
         win.private().start_button.as(gtk.Widget).setSensitive(0);
-        win.private().view_button.as(gtk.Widget).setSensitive(0);
+        win.private().randomize_button.as(gtk.Widget).setSensitive(0);
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
     }
@@ -213,8 +241,10 @@ const ApplicationWindow = extern struct {
         std.log.info("handleStopClicked", .{});
         win.private().open_button.as(gtk.Widget).setSensitive(1);
         win.private().save_button.as(gtk.Widget).setSensitive(1);
+        win.private().tick_button.as(gtk.Widget).setSensitive(1);
         win.private().start_button.as(gtk.Widget).setSensitive(1);
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
+        win.private().randomize_button.as(gtk.Widget).setSensitive(1);
 
         win.private().status = .Stopped;
         if (win.private().engine_thread) |engine_thread| {
@@ -223,12 +253,34 @@ const ApplicationWindow = extern struct {
         }
     }
 
+    fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
+        std.log.info("handleTickClicked", .{});
+        const engine = win.private().engine orelse return;
+
+        engine.attraction = @floatCast(win.private().attraction.getValue() / 1000);
+        engine.repulsion = @floatCast(win.private().repulsion.getValue() / 1000);
+        engine.temperature = @floatCast(win.private().temperature.getValue() / 1000);
+
+        _ = engine.tick() catch |err| @panic(@errorName(err));
+        const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
+        std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
+        win.private().socket.send(msg, .{}) catch |err| @panic(@errorName(err));
+    }
+
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         std.log.info("handleStartClicked", .{});
+
+        const engine = win.private().engine orelse return;
+        engine.attraction = @floatCast(win.private().attraction.getValue() / 1000);
+        engine.repulsion = @floatCast(win.private().repulsion.getValue() / 1000);
+        engine.temperature = @floatCast(win.private().temperature.getValue() / 1000);
+
         win.private().open_button.as(gtk.Widget).setSensitive(0);
         win.private().save_button.as(gtk.Widget).setSensitive(0);
+        win.private().tick_button.as(gtk.Widget).setSensitive(0);
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(1);
+        win.private().randomize_button.as(gtk.Widget).setSensitive(0);
 
         win.private().status = .Started;
         win.private().engine_thread = std.Thread.spawn(.{}, loop, .{win}) catch |err| {
@@ -253,28 +305,33 @@ const ApplicationWindow = extern struct {
         win.private().view_button.as(gtk.Widget).setSensitive(0);
     }
 
-    fn handleAttractionValueChanged(range: *gtk.Range, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleAttractionValueChanged", .{});
-        const value = range.getValue();
-        if (win.private().engine) |engine| {
-            engine.attraction = @floatCast(value / 50000);
-        }
+    fn handleRandomizeClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
+        std.log.info("handleRandomizeClicked", .{});
+
+        const store = win.private().store orelse return;
+        const engine = win.private().engine orelse return;
+
+        const s = std.math.sqrt(@as(f32, @floatFromInt(store.node_count)));
+        engine.randomize(s * 100);
+
+        const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
+        std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
+        win.private().socket.send(msg, .{}) catch |err| @panic(@errorName(err));
     }
 
-    fn handleRepulsionValueChanged(range: *gtk.Range, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleRepulsionValueChanged", .{});
-        const value = range.getValue();
-        if (win.private().engine) |engine| {
-            engine.repulsion = @floatCast(value / 0.5);
-        }
+    fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
+        const engine = win.private().engine orelse return;
+        engine.attraction = @floatCast(value / 1000);
     }
 
-    fn handleTemperatureValueChanged(range: *gtk.Range, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleTemperatureValueChanged", .{});
-        const value = range.getValue();
-        if (win.private().engine) |engine| {
-            engine.temperature = @floatCast(value / 200);
-        }
+    fn handleRepulsionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
+        const engine = win.private().engine orelse return;
+        engine.repulsion = @floatCast(value / 1000);
+    }
+
+    fn handleTemperatureValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
+        const engine = win.private().engine orelse return;
+        engine.temperature = @floatCast(value / 1000);
     }
 
     fn handleOpenResponse(chooser: *gtk.FileChooserNative, _: c_int, win: *ApplicationWindow) callconv(.C) void {
@@ -283,61 +340,6 @@ const ApplicationWindow = extern struct {
         defer file.unref();
         win.openFile(file);
     }
-
-    // fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-    //     std.log.info("handleTickClicked", .{});
-    //     const engine = win.private().engine orelse return;
-    //     const energy = engine.tick() catch |err| {
-    //         std.log.err("engine tick failed: {s}", .{@errorName(err)});
-    //         return;
-    //     };
-
-    //     _ = energy;
-
-    //     const msg = nng.Message.init(8) catch |err| {
-    //         std.log.err("nng.Message.init failed: {s}", .{@errorName(err)});
-    //         return;
-    //     };
-
-    //     std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
-    //     win.private().socket.send(msg, .{}) catch |err| {
-    //         std.log.err("Socket.PUB.send failed: {s}", .{@errorName(err)});
-    //         return;
-    //     };
-    // }
-
-    // fn start(win: *ApplicationWindow) !ValueRef {
-    //     if (win.private().runner == null) {
-    //         win.private().running = true;
-    //         win.private().runner = try std.Thread.spawn(.{}, loop, .{win});
-    //     }
-
-    //     return null;
-    // }
-
-    // fn loop(win: *ApplicationWindow) void {
-    //     const stdout = std.io.getStdOut().writer();
-    //     win.private().timer.reset();
-    //     while (win.private().running) {
-    //         const energy = env.store.tick() catch continue;
-    //         stdout.print("tick: {d}ms ({d})\n", .{ env.timer.lap() / 1_000_000, energy }) catch continue;
-    //     }
-    // }
-
-    // fn stop(win: *ApplicationWindow) void {
-    //     win.private().running = false;
-    //     if (win.private().runner) |thread| {
-    //         thread.join();
-    //         win.private().runner = null;
-    //     }
-
-    //     return null;
-    // }
-
-    // fn handleCloseRequest(win: *ApplicationWindow, _: ?*anyopaque) callconv(.C) c_int {
-    //     win.saveCurrentImage();
-    //     return 0;
-    // }
 
     fn private(win: *ApplicationWindow) *Private {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
@@ -363,13 +365,16 @@ const ApplicationWindow = extern struct {
 
             class.bindTemplateChildPrivate("save_button", .{});
             class.bindTemplateChildPrivate("open_button", .{});
+            class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});
             class.bindTemplateChildPrivate("stop_button", .{});
             class.bindTemplateChildPrivate("view_button", .{});
+            class.bindTemplateChildPrivate("randomize_button", .{});
             class.bindTemplateChildPrivate("progress_bar", .{});
-            class.bindTemplateChildPrivate("attraction_scale", .{});
-            class.bindTemplateChildPrivate("repulsion_scale", .{});
-            class.bindTemplateChildPrivate("temperature_scale", .{});
+
+            class.bindTemplateChildPrivate("attraction", .{});
+            class.bindTemplateChildPrivate("repulsion", .{});
+            class.bindTemplateChildPrivate("temperature", .{});
 
             class.bindTemplateChildPrivate("stack", .{});
         }
@@ -388,15 +393,20 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
     const store = win.private().store orelse return;
-    win.private().engine = Engine.init(c_allocator, store) catch |err| {
+    const engine = Engine.init(c_allocator, store) catch |err| {
         std.log.err("failed to initialize engine: {s}", .{@errorName(err)});
         return;
     };
 
+    win.private().engine = engine;
+
     win.private().open_button.as(gtk.Widget).setSensitive(1);
     win.private().save_button.as(gtk.Widget).setSensitive(1);
+    win.private().tick_button.as(gtk.Widget).setSensitive(1);
     win.private().start_button.as(gtk.Widget).setSensitive(1);
+    win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
+    win.private().randomize_button.as(gtk.Widget).setSensitive(1);
     gtk.Stack.setVisibleChildName(win.private().stack, "controls");
 }
 

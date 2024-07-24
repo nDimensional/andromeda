@@ -59,6 +59,9 @@ pub fn init(allocator: std.mem.Allocator, store: *const Store) !*Engine {
     self.min_y = 0;
     self.max_y = 0;
 
+    // self.attraction = 1.0;
+    // self.repulsion = 1.0;
+    // self.temperature = 10.0;
     self.attraction = 0.0001;
     self.repulsion = 100.0;
     self.temperature = 0.1;
@@ -89,25 +92,33 @@ pub fn getBoundingSize(self: Engine) !f32 {
     return std.math.pow(f32, 2, @ceil(@log2(s)));
 }
 
-pub fn randomize(self: *Engine, s: u32) void {
+pub fn randomize(self: *Engine, s: f32) void {
     var random = self.prng.random();
     for (0..self.store.node_count) |i| {
         const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.store.node_count));
 
-        var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        x -= @floatFromInt(s / 2);
+        // var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
+        // x -= @floatFromInt(s / 2);
+        var x = s * random.float(f32);
+        x -= s / 2;
         x += p;
 
-        var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        y -= @floatFromInt(s / 2);
+        // var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
+        // y -= @floatFromInt(s / 2);
+        var y = s * random.float(f32);
+        y -= s / 2;
         y += p;
 
-        self.positions[i] = .{ x, y };
+        self.store.positions[i] = .{ x, y };
     }
+
+    self.count += 1;
 }
 
 pub fn tick(self: *Engine) !f32 {
     self.timer.reset();
+
+    std.log.info("tick: attraction = {d}, repulsion = {d}, temperature = {d}", .{self.attraction, self.repulsion, self.temperature});
 
     {
         const s = try self.getBoundingSize();
@@ -122,7 +133,7 @@ pub fn tick(self: *Engine) !f32 {
 
         for (0..4) |i| pool[i].join();
 
-        std.log.info("rebuilt quadtree in {d}ms", .{self.timer.lap() / 1_000_000});
+        // std.log.info("rebuilt quadtree in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
     {
@@ -136,7 +147,7 @@ pub fn tick(self: *Engine) !f32 {
 
         for (0..node_pool_size) |i| pool[i].join();
 
-        std.log.info("applied node forces in {d}ms", .{self.timer.lap() / 1_000_000});
+        // std.log.info("applied node forces in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
     {
@@ -150,7 +161,7 @@ pub fn tick(self: *Engine) !f32 {
 
         for (0..edge_pool_size) |i| pool[i].join();
 
-        std.log.info("applied edge forces in {d}ms", .{self.timer.lap() / 1_000_000});
+        // std.log.info("applied edge forces in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
     self.min_x = 0;
@@ -216,7 +227,7 @@ fn updateNodeForces(self: *Engine, min: usize, max: usize, node_forces: []Force)
 }
 
 pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
-    var timer = try std.time.Timer.start();
+    // var timer = try std.time.Timer.start();
 
     var i: u32 = 0;
     while (i < self.store.node_count) : (i += 1) {
@@ -227,7 +238,7 @@ pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
         }
     }
 
-    std.log.info("rebuildQuad in {d}ms ({d} nodes)", .{ timer.read() / 1_000_000, tree.tree.items.len });
+    // std.log.info("rebuildQuad in {d}ms ({d} nodes)", .{ timer.read() / 1_000_000, tree.tree.items.len });
 }
 
 fn getNodeForce(self: *Engine, p: Point, mass: f32) Force {
