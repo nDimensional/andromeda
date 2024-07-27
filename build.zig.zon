@@ -14,8 +14,8 @@
             .hash = "122097737716aa3e2e44b709dc76229462caa1bb617dec0787e96f75e159dc717bfa",
         },
         .mach = .{
-            .url = "https://pkg.machengine.org/mach/316f2354d155d7fb706e6cfa1d09b7db8896b92f.tar.gz",
-            .hash = "1220972c1b0fc6cf690f317715677441c4e9b0f6d1e807be9886c87b0471ca09080f",
+            .url = "https://github.com/hexops/mach/archive/refs/tags/v0.4.0.tar.gz",
+            .hash = "1220d164f5570cbeb683be58f61f345d50de15b9b8e7e4db04c83f4207d78e585332",
         },
         .mbedtls = .{
             .url = "https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v2.28.8.tar.gz",
