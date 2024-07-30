@@ -36,10 +36,10 @@ comptime {
 }
 
 pub const mach_core_options = core.ComptimeOptions{
-    // .use_wgpu = false,
-    // .use_sysgpu = true,
-    .use_wgpu = true,
-    .use_sysgpu = false,
+    .use_wgpu = false,
+    .use_sysgpu = true,
+    // .use_wgpu = true,
+    // .use_sysgpu = false,
 };
 
 const vertex_buffer_data: []const Point = &.{
