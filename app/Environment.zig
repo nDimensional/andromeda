@@ -38,41 +38,41 @@ pub fn init(env: *Environment, allocator: std.mem.Allocator, path: [*:0]const u8
 
     env.timer = try std.time.Timer.start();
 
-    env.config = Config.init();
+    env.config = Config.create();
     env.config.setResourcePathPrefix("SDK/resources/");
 
-    env.settings = Settings.init();
+    env.settings = Settings.create();
     env.settings.setDeveloperName("nDimensional");
     env.settings.setAppName("Andromeda");
 
-    env.app = App.init(env.settings, env.config);
+    env.app = App.create(env.settings, env.config);
 
-    env.window = Window.init(
+    env.window = Window.create(
         env.app.getMainMonitor(),
         .{ .width = 1200, .height = 800, .tilted = true, .resizable = true },
     );
 
     env.window.setResizeCallback(Environment, env, &onWindowResize);
 
-    env.overlay = Overlay.init(env.window, env.window.getWidth(), env.window.getHeight(), 0, 0);
+    env.overlay = Overlay.create(env.window, env.window.getWidth(), env.window.getHeight(), 0, 0);
 
     env.view = env.overlay.getView();
     env.view.setDOMReadyCallback(Environment, env, &onDOMReady);
     env.view.setConsoleMessageCallback(Environment, env, &onConsoleMessage);
 
     env.html = try File.init("assets/app.html");
-    env.listener = Listener.init("dist/index.js");
+    env.listener = try Listener.init("dist/index.js");
     env.runner = null;
     env.running = false;
 }
 
 pub fn deinit(self: Environment) void {
-    self.app.deinit();
-    self.config.deinit();
-    self.settings.deinit();
+    self.app.destroy();
+    self.config.destroy();
+    self.settings.destroy();
     self.store.deinit();
-    self.window.deinit();
-    self.overlay.deinit();
+    self.window.destroy();
+    self.overlay.destroy();
 
     self.html.deinit();
     self.listener.deinit();
@@ -138,7 +138,7 @@ fn onWindowResize(env: *Environment, event: Window.ResizeEvent) void {
 fn onUpdate(env: *Environment) void {
     var result = env.listener.poll() catch return;
     while (result) |event| {
-        if (event.fflags & std.os.darwin.NOTE_WRITE != 0) {
+        if (event.fflags & std.c.NOTE_WRITE != 0) {
             std.log.info("reloading...", .{});
             env.view.loadHTML(env.html.data);
             return;

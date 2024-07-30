@@ -7,20 +7,36 @@
         "dist",
         "build.zig",
         "build.zig.zon",
-        "README.md",
     },
     .dependencies = .{
-        .ultralight = .{
-            .url = "https://github.com/nDimensional/zig-ultralight/archive/c0e59fab938bad77e9cc7a67a86a722f331ffb40.tar.gz",
-            .hash = "1220d3bf58a01cc78fd7200e44cb0cb57978e845e50fa00f2214119b35ff16a51ee2",
-        },
         .sqlite = .{
-            .url = "https://github.com/nDimensional/zig-sqlite/archive/0068f09a819554f1d9916474e4c851fca167ac28.tar.gz",
-            .hash = "122045fa548c2a45965ecf3be834d6f2003247c36fc3b2c6fddd949e7a4c7295118c",
+            .url = "https://github.com/nDimensional/zig-sqlite/archive/e30a30b99c4c8c57dfc7dffa29e3706253f04469.tar.gz",
+            .hash = "122097737716aa3e2e44b709dc76229462caa1bb617dec0787e96f75e159dc717bfa",
         },
-        .chan = .{
-            .url = "https://github.com/nDimensional/zig-chan/archive/abf826bda49205d1b597c446b2b84cdf74c14354.tar.gz",
-            .hash = "1220627c215704e253f2b1559d12f38e034a4328d762afa6e632affc1eacbf7b0c50",
+        .mach = .{
+            .url = "https://github.com/hexops/mach/archive/refs/tags/v0.4.0.tar.gz",
+            .hash = "1220d164f5570cbeb683be58f61f345d50de15b9b8e7e4db04c83f4207d78e585332",
+        },
+        .mbedtls = .{
+            .url = "https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v2.28.8.tar.gz",
+            .hash = "12200130d7fef0dd3b2d375c378c7dcd11f64eb64cd9ab1bc33397eaafa44e30bc65",
+        },
+        .nng = .{
+            .url = "https://github.com/nanomsg/nng/archive/refs/tags/v1.8.0.tar.gz",
+            .hash = "12209663cb709a7a07f25cabc04e1b6cde4f7f4710456a39d1854c3d8b71bc1a116f",
+        },
+
+        .xml = .{
+            .url = "git+https://github.com/ianprime0509/zig-xml?ref=main#0747fa10b28ade9a8516bc5b122dcad997bd8fa7",
+            .hash = "1220fcb9b8da8bcfdaa18c81678c6b5cf41d63a2bf9fde7551b4390279cc473a2520",
+        },
+        .gobject = .{
+            .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.2.0/bindings-gnome46.tar.zst",
+            .hash = "122072ebbd8a100c9e2f682cd130c3707a8441d1bba2c8f5f38111a23a2db1361de7",
+        },
+        .libintl = .{
+            .url = "git+https://github.com/ianprime0509/zig-libintl?ref=main#0c436aa63c31bb8ad5d7d59800638f784e1e04a5",
+            .hash = "1220e1f1576da3188a8749940f836cfb4f858ee3455660b05c67984ddc29cf63956e",
         },
     },
 }

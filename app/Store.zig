@@ -2,15 +2,15 @@ const std = @import("std");
 
 const sqlite = @import("sqlite");
 
-const ul = @import("ul");
-const Context = ul.JavaScriptCore.Context;
+// const ul = @import("ul");
+// const Context = ul.JavaScriptCore.Context;
 
 const Quadtree = @import("Quadtree.zig");
 const forces = @import("forces.zig");
 
 const Store = @This();
 
-const UpdateParams = struct { x: f32, y: f32, idx: u32 };
+const UpdateParams = struct { x: f32, ey: f32, idx: u32 };
 pub const AreaParams = struct { minX: f32, maxX: f32, minY: f32, maxY: f32, minZ: f32 };
 pub const AreaResult = struct { idx: u32 };
 
@@ -32,8 +32,9 @@ edge_count: usize = 0,
 
 source: []u32 = undefined,
 target: []u32 = undefined,
-x: []f32 = undefined,
-y: []f32 = undefined,
+positions: []@Vector(2, f32) = undefined,
+// x: []f32 = undefined,
+// y: []f32 = undefined,
 z: []f32 = undefined,
 
 min_y: f32 = 0,
@@ -53,7 +54,7 @@ temperature: f32 = 0.1,
 timer: std.time.Timer,
 
 pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
-    const db = try sqlite.Database.init(.{ .path = path, .create = false });
+    const db = try sqlite.Database.open(.{ .path = path, .create = false });
 
     const update = try db.prepare(UpdateParams, void,
         \\ UPDATE atlas SET minX = :x, maxX = :x, minY = :y, maxY = :y WHERE idx = :idx
@@ -82,7 +83,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
 
     {
         const count_edges = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM edges");
-        defer count_edges.deinit();
+        defer count_edges.finalize();
 
         try count_edges.bind(.{});
         if (try count_edges.step()) |result| {
@@ -96,7 +97,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
     {
         const Edge = struct { source: u32, target: u32 };
         const select_edges = try store.db.prepare(struct {}, Edge, "SELECT source, target FROM edges");
-        defer select_edges.deinit();
+        defer select_edges.finalize();
 
         try select_edges.bind(.{});
         defer select_edges.reset();
@@ -110,7 +111,7 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
 
     {
         const count_nodes = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM nodes");
-        defer count_nodes.deinit();
+        defer count_nodes.finalize();
 
         try count_nodes.bind(.{});
         defer count_nodes.reset();
@@ -120,8 +121,9 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
         }
     }
 
-    store.x = try allocator.alloc(f32, store.node_count);
-    store.y = try allocator.alloc(f32, store.node_count);
+    // store.x = try allocator.alloc(f32, store.node_count);
+    // store.y = try allocator.alloc(f32, store.node_count);
+    store.positions = try allocator.alloc(@Vector(2, f32), store.node_count);
     store.z = try allocator.alloc(f32, store.node_count);
 
     {
@@ -129,14 +131,15 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
         const select_nodes = try store.db.prepare(struct {}, Node,
             \\ SELECT idx, minX AS x, minY AS y, minZ AS incoming_degree FROM atlas
         );
-        defer select_nodes.deinit();
+        defer select_nodes.finalize();
 
         try select_nodes.bind(.{});
         defer select_nodes.reset();
         while (try select_nodes.step()) |node| {
             const i = node.idx - 1;
-            store.x[i] = node.x;
-            store.y[i] = node.y;
+            // store.x[i] = node.x;
+            // store.y[i] = node.y;
+            store.positions[i] = .{node.x, node.y};
             store.z[i] = node.incoming_degree;
 
             store.min_x = @min(store.min_x, node.x);
@@ -158,9 +161,9 @@ pub fn init(allocator: std.mem.Allocator, path: [*:0]const u8) !Store {
 }
 
 pub fn deinit(self: Store) void {
-    self.update.deinit();
-    self.select_ids.deinit();
-    self.db.deinit();
+    self.update.finalize();
+    self.select_ids.finalize();
+    self.db.close();
 
     self.ids.deinit();
 
@@ -168,30 +171,31 @@ pub fn deinit(self: Store) void {
 
     self.allocator.free(self.source);
     self.allocator.free(self.target);
-    self.allocator.free(self.x);
-    self.allocator.free(self.y);
+    // self.allocator.free(self.x);
+    // self.allocator.free(self.y);
+    self.allocator.free(self.positions);
     self.allocator.free(self.z);
 
     self.allocator.free(self.node_forces);
     inline for (self.edge_forces) |edge_forces| self.allocator.free(edge_forces);
 }
 
-pub fn inject(self: *Store, ctx: Context) !void {
-    const global = ctx.getGlobal();
+// pub fn inject(self: *Store, ctx: Context) !void {
+//     const global = ctx.getGlobal();
 
-    ctx.setProperty(global, "node_count", ctx.makeNumber(@floatFromInt(self.node_count)));
-    ctx.setProperty(global, "edge_count", ctx.makeNumber(@floatFromInt(self.edge_count)));
+//     ctx.setProperty(global, "node_count", ctx.makeNumber(@floatFromInt(self.node_count)));
+//     ctx.setProperty(global, "edge_count", ctx.makeNumber(@floatFromInt(self.edge_count)));
 
-    ctx.setProperty(global, "source", try ctx.makeTypedArray(u32, self.source));
-    ctx.setProperty(global, "target", try ctx.makeTypedArray(u32, self.target));
-    ctx.setProperty(global, "x", try ctx.makeTypedArray(f32, self.x));
-    ctx.setProperty(global, "y", try ctx.makeTypedArray(f32, self.y));
-    ctx.setProperty(global, "z", try ctx.makeTypedArray(f32, self.z));
+//     ctx.setProperty(global, "source", try ctx.makeTypedArray(u32, self.source));
+//     ctx.setProperty(global, "target", try ctx.makeTypedArray(u32, self.target));
+//     ctx.setProperty(global, "x", try ctx.makeTypedArray(f32, self.x));
+//     ctx.setProperty(global, "y", try ctx.makeTypedArray(f32, self.y));
+//     ctx.setProperty(global, "z", try ctx.makeTypedArray(f32, self.z));
 
-    ctx.setProperty(global, "attraction", ctx.makeNumber(self.attraction));
-    ctx.setProperty(global, "repulsion", ctx.makeNumber(self.repulsion));
-    ctx.setProperty(global, "temperature", ctx.makeNumber(self.temperature));
-}
+//     ctx.setProperty(global, "attraction", ctx.makeNumber(self.attraction));
+//     ctx.setProperty(global, "repulsion", ctx.makeNumber(self.repulsion));
+//     ctx.setProperty(global, "temperature", ctx.makeNumber(self.temperature));
+// }
 
 pub fn getBoundingSize(self: Store) !f32 {
     const s = @max(@abs(self.min_x), @abs(self.max_x), @abs(self.min_y), @abs(self.max_y)) * 2;
@@ -348,7 +352,7 @@ pub fn save(self: *Store) !void {
 
     {
         const begin = try self.db.prepare(struct {}, void, "BEGIN TRANSACTION");
-        defer begin.deinit();
+        defer begin.finalize();
         try begin.exec(.{});
     }
 
@@ -359,7 +363,7 @@ pub fn save(self: *Store) !void {
 
     {
         const commit = try self.db.prepare(struct {}, void, "COMMIT TRANSACTION");
-        defer commit.deinit();
+        defer commit.finalize();
         try commit.exec(.{});
     }
 }
