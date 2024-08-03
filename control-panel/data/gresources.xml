@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<gresources>
-  <gresource prefix="/Users/joelgustafson/Projects/andromeda/control-panel/data/">
-    <file preprocess="xml-stripblanks">metainfo.xml</file>
-    <file preprocess="xml-stripblanks">ui/LogScale.xml</file>
-    <file preprocess="xml-stripblanks">ui/ApplicationWindow.xml</file>
-  </gresource>
-</gresources>

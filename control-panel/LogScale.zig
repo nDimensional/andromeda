@@ -1,9 +1,9 @@
 const std = @import("std");
 const gtk = @import("gtk");
+const glib = @import("glib");
 const gobject = @import("gobject");
 
-const TEMPLATE_PATH = "/Users/joelgustafson/Projects/andromeda/control-panel/data/ui/LogScale.xml";
-
+const TEMPLATE = @embedFile("./data/ui/LogScale.xml");
 const EXPONENT = 10;
 const MIN_POW = 1;
 
@@ -153,7 +153,9 @@ pub const LogScale = extern struct {
         fn init(class: *Class) callconv(.C) void {
             gobject.Object.virtual_methods.dispose.implement(class, &dispose);
             gobject.Object.virtual_methods.finalize.implement(class, &finalize);
-            gtk.Widget.Class.setTemplateFromResource(class.as(gtk.Widget.Class), TEMPLATE_PATH);
+            // gtk.Widget.Class.setTemplateFromResource(class.as(gtk.Widget.Class), TEMPLATE_PATH);
+            const template = glib.Bytes.newStatic(TEMPLATE.ptr, TEMPLATE.len);
+            class.as(gtk.Widget.Class).setTemplate(template);
 
             class.bindTemplateChildPrivate("box", .{});
             class.bindTemplateChildPrivate("scale", .{});

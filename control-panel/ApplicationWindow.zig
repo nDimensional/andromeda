@@ -1,5 +1,4 @@
 const std = @import("std");
-const build_options = @import("build_options");
 const glib = @import("glib");
 const gobject = @import("gobject");
 const gio = @import("gio");
@@ -8,6 +7,8 @@ const intl = @import("libintl");
 
 const nng = @import("nng");
 
+const build_options = @import("build_options");
+
 const c_allocator = std.heap.c_allocator;
 
 const Progress = @import("Progress.zig");
@@ -15,9 +16,11 @@ const Store = @import("Store.zig");
 const Engine = @import("Engine.zig");
 const LogScale = @import("LogScale.zig").LogScale;
 
-const TEMPLATE_PATH = "/Users/joelgustafson/Projects/andromeda/control-panel/data/ui/ApplicationWindow.xml";
-const EXECUTABLE_PATH = "/Users/joelgustafson/Projects/andromeda/zig-out/bin/andromeda-atlas";
-const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
+const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
+const EXECUTABLE_PATH = build_options.atlas_path;
+
+// const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
+const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
 const Status = enum { Stopped, Started };
 
@@ -60,8 +63,8 @@ pub const ApplicationWindow = extern struct {
         .private = .{ .Type = Private, .offset = &Private.offset },
     });
 
-
     pub fn new(app: *gtk.Application) *ApplicationWindow {
+        // std.log.info("TEMPLATE_PATH: {s}", .{TEMPLATE_PATH});
         return gobject.ext.newInstance(ApplicationWindow, .{ .application = app });
     }
 
@@ -288,7 +291,8 @@ pub const ApplicationWindow = extern struct {
         fn init(class: *Class) callconv(.C) void {
             gobject.Object.virtual_methods.dispose.implement(class, &dispose);
             gobject.Object.virtual_methods.finalize.implement(class, &finalize);
-            gtk.Widget.Class.setTemplateFromResource(class.as(gtk.Widget.Class), TEMPLATE_PATH);
+            const template = glib.Bytes.newStatic(TEMPLATE.ptr, TEMPLATE.len);
+            class.as(gtk.Widget.Class).setTemplate(template);
 
             class.bindTemplateChildPrivate("save_button", .{});
             class.bindTemplateChildPrivate("open_button", .{});

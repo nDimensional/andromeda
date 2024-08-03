@@ -7,11 +7,15 @@ const nng = @import("nng");
 const sho = @import("shared-object");
 const c = @import("c.zig");
 
+const build_options = @import("build_options");
+
 pub const App = @This();
 
 const allocator = std.heap.c_allocator;
 const SHM_NAME = "ANDROMEDA";
-const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
+
+// const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
+const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
 const Point = @Vector(2, f32);
 const Body = packed struct { mass: f32 };
