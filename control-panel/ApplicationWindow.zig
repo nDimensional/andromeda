@@ -18,8 +18,6 @@ const LogScale = @import("LogScale.zig").LogScale;
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 const EXECUTABLE_PATH = build_options.atlas_path;
-
-// const SOCKET_URL = "ipc:///Users/joelgustafson/Projects/andromeda/socket";
 const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
 const Status = enum { Stopped, Started };
