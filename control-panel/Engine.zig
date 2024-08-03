@@ -8,7 +8,6 @@ const Point = forces.Point;
 const Force = forces.Force;
 
 const Engine = @This();
-const SHM_NAME = "ANDROMEDA";
 
 const node_pool_size = 16;
 const edge_pool_size = 16;
@@ -117,8 +116,6 @@ pub fn randomize(self: *Engine, s: f32) void {
 
 pub fn tick(self: *Engine) !f32 {
     self.timer.reset();
-
-    std.log.info("tick: attraction = {d}, repulsion = {d}, temperature = {d}", .{self.attraction, self.repulsion, self.temperature});
 
     {
         const s = try self.getBoundingSize();

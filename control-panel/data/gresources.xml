@@ -1,14 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <gresources>
   <gresource prefix="/Users/joelgustafson/Projects/andromeda/control-panel/data/">
-    <file preprocess="xml-stripblanks" alias="metainfo.xml">dev.ianjohnson.Nonograms.metainfo.xml</file>
-    <!-- <file preprocess="xml-stripblanks">icons/scalable/actions/about-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/library-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">icons/scalable/actions/menu-symbolic.svg</file>
-    <file preprocess="xml-stripblanks">ui/color-button.ui</file>
-    <file preprocess="xml-stripblanks">ui/color-picker.ui</file>
-    <file preprocess="xml-stripblanks">ui/view.ui</file> -->
-    <file preprocess="xml-stripblanks">ui/window.xml</file>
+    <file preprocess="xml-stripblanks">metainfo.xml</file>
     <file preprocess="xml-stripblanks">ui/LogScale.xml</file>
+    <file preprocess="xml-stripblanks">ui/ApplicationWindow.xml</file>
   </gresource>
 </gresources>

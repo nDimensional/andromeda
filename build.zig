@@ -284,71 +284,50 @@ pub fn build(b: *std.Build) !void {
     // const run_control_panel = b.step("run", "Run the control panel");
     // run_control_panel.dependOn(&control_panel_artifact.step);
 
-    const locale_dir: std.Build.InstallDir = .{ .custom = "share/locale" };
-    const build_options = b.addOptions();
-    build_options.addOption([]const u8, "locale_dir", b.getInstallPath(locale_dir, ""));
+    {
+        const locale_dir: std.Build.InstallDir = .{ .custom = "share/locale" };
+        const build_options = b.addOptions();
+        build_options.addOption([]const u8, "locale_dir", b.getInstallPath(locale_dir, ""));
 
-    const control_panel = b.addExecutable(.{
-        .name = "andromeda-control-panel",
-        .root_source_file = b.path("./control-panel/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+        const control_panel = b.addExecutable(.{
+            .name = "andromeda-control-panel",
+            .root_source_file = b.path("./control-panel/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
 
-    control_panel.linkLibC();
-    control_panel.root_module.addOptions("build_options", build_options);
+        control_panel.linkLibC();
+        control_panel.root_module.addOptions("build_options", build_options);
 
-    control_panel.root_module.addImport("sqlite", sqlite);
-    control_panel.root_module.addImport("shared-object", shared_object);
-    control_panel.root_module.addImport("nng", nng);
-    control_panel.linkSystemLibrary("gtk4");
+        control_panel.root_module.addImport("sqlite", sqlite);
+        control_panel.root_module.addImport("shared-object", shared_object);
+        control_panel.root_module.addImport("nng", nng);
 
-    const xml = b.dependency("xml", .{}).module("xml");
-    const gobject = b.dependency("gobject", .{});
-    const libintl = b.dependency("libintl", .{});
+        const xml = b.dependency("xml", .{}).module("xml");
+        const gobject = b.dependency("gobject", .{});
+        const libintl = b.dependency("libintl", .{});
 
-    control_panel.root_module.addImport("xml", xml);
-    control_panel.root_module.addImport("glib", gobject.module("glib2"));
-    control_panel.root_module.addImport("gobject", gobject.module("gobject2"));
-    control_panel.root_module.addImport("gio", gobject.module("gio2"));
-    control_panel.root_module.addImport("gdk", gobject.module("gdk4"));
-    control_panel.root_module.addImport("gtk", gobject.module("gtk4"));
-    control_panel.root_module.addImport("cairo", gobject.module("cairo1"));
-    control_panel.root_module.addImport("pango", gobject.module("pango1"));
-    control_panel.root_module.addImport("pangocairo", gobject.module("pangocairo1"));
-    control_panel.root_module.addImport("adw", gobject.module("adw1"));
-    control_panel.root_module.addImport("libintl", libintl.module("libintl"));
+        control_panel.root_module.addImport("xml", xml);
+        control_panel.root_module.addImport("glib", gobject.module("glib2"));
+        control_panel.root_module.addImport("gobject", gobject.module("gobject2"));
+        control_panel.root_module.addImport("gio", gobject.module("gio2"));
+        control_panel.root_module.addImport("gdk", gobject.module("gdk4"));
+        control_panel.root_module.addImport("gtk", gobject.module("gtk4"));
+        control_panel.root_module.addImport("cairo", gobject.module("cairo1"));
+        control_panel.root_module.addImport("pango", gobject.module("pango1"));
+        control_panel.root_module.addImport("pangocairo", gobject.module("pangocairo1"));
+        control_panel.root_module.addImport("adw", gobject.module("adw1"));
+        control_panel.root_module.addImport("libintl", libintl.module("libintl"));
 
-    const gresources = gobject_build.addCompileResources(b, target, b.path("control-panel/data/gresources.xml"));
-    control_panel.root_module.addImport("gresources", gresources);
+        const gresources = gobject_build.addCompileResources(b, target, b.path("control-panel/data/gresources.xml"));
+        control_panel.root_module.addImport("gresources", gresources);
 
-    b.installArtifact(control_panel);
+        b.installArtifact(control_panel);
 
-    const control_panel_artifact = b.addRunArtifact(control_panel);
-    control_panel_artifact.step.dependOn(&atlas.install.step);
+        const control_panel_artifact = b.addRunArtifact(control_panel);
+        control_panel_artifact.step.dependOn(&atlas.install.step);
 
-    const run_control_panel = b.step("run", "Run the control panel");
-    run_control_panel.dependOn(&control_panel_artifact.step);
-
-    // Multi-threaded SQLite test
-    const db_test = b.addExecutable(.{
-        .name = "db-test",
-        .root_source_file = b.path("./main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    db_test.root_module.addImport("glib", gobject.module("glib2"));
-    db_test.root_module.addImport("gobject", gobject.module("gobject2"));
-    db_test.root_module.addImport("gio", gobject.module("gio2"));
-    db_test.root_module.addImport("gdk", gobject.module("gdk4"));
-    db_test.root_module.addImport("gtk", gobject.module("gtk4"));
-
-    db_test.root_module.addImport("sqlite", sqlite);
-    db_test.root_module.addImport("shared-object", shared_object);
-
-    const db_test_artifact = b.addRunArtifact(db_test);
-    const run_db_test = b.step("db-test", "Run the SQLite database test");
-    run_db_test.dependOn(&db_test_artifact.step);
-
+        const run_control_panel = b.step("run", "Run the control panel");
+        run_control_panel.dependOn(&control_panel_artifact.step);
+    }
 }

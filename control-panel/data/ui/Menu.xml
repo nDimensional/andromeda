@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <menu id="menubar">
+    <submenu>
+      <attribute name="label" translatable="yes">_File</attribute>
+      <section id="menu1">
+        <item>
+        <attribute name="label" translatable="true">New</attribute>
+        <attribute name="action">win.new-file</attribute>
+        <attribute name="accel">&lt;Ctrl&gt;n</attribute>
+        </item>
+        <item>
+        <attribute name="label" translatable="yes">Open</attribute>
+        <attribute name="action">win.open</attribute>
+        <attribute name="accel">&lt;Ctrl&gt;o</attribute>
+        </item>
+      </section>
+    </submenu>
+
+    <submenu>
+      <attribute name="label" translatable="yes">_Edit</attribute>
+      <section id="sectionUndoRedo">
+        <item>
+          <attribute name="label" translatable="yes">Undo</attribute>
+          <attribute name="action">win.undo</attribute>
+          <!-- Undo/Redo accelerators are set in control/actions/ActionDatabase.cpp -->
+        </item>
+        <item>
+          <attribute name="label" translatable="yes">Redo</attribute>
+          <attribute name="action">win.redo</attribute>
+          <!-- Undo/Redo accelerators are set in control/actions/ActionDatabase.cpp -->
+        </item>
+      </section>
+    </submenu>
+    <!-- <section>
+      <item>
+        <attribute name="label" translatable="yes">Open</attribute>
+        <attribute name="action">win.open</attribute>
+      </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">Clear</attribute>
+        <attribute name="action">win.clear</attribute>
+      </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">About</attribute>
+        <attribute name="action">win.about</attribute>
+      </item>
+    </section> -->
+  </menu>
+</interface>

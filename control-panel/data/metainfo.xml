@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component type="desktop-application">
+  <id>xyz.ndimensional.andromeda</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>0BSD</project_license>
+  <name>Andromeda</name>
+  <summary>Force-directed graph layout engine</summary>
+  <url type="homepage">https://github.com/nDimensional/andromeda</url>
+  <url type="bugtracker">https://github.com/nDimensional/andromeda/issues</url>
+  <url type="vcs-browser">https://github.com/nDimensional/andromeda</url>
+  <developer id="com.joelgustafson">
+    <name>Joel Gustafson</name>
+  </developer>
+</component>

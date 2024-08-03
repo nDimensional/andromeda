@@ -1,62 +1,69 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <template class="NonogramsApplicationWindow" parent="AdwApplicationWindow">
-    <property name="title" translatable="yes">Nonograms</property>
-    <property name="default-width">512</property>
+  <template class="AndromedaApplicationWindow" parent="GtkApplicationWindow">
+    <property name="title" translatable="yes">Andromeda</property>
+    <property name="default-width">400</property>
     <property name="default-height">320</property>
-    <property name="content">
+    <child>
       <object class="GtkBox">
         <property name="orientation">vertical</property>
         <property name="hexpand">true</property>
         <child>
-          <object class="AdwHeaderBar">
-            <child type="start">
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
+            <property name="hexpand">true</property>
+            <property name="spacing">8</property>
+            <property name="margin-start">10</property>
+            <property name="margin-end">10</property>
+            <property name="margin-top">10</property>
+            <property name="margin-bottom">10</property>
+            <child>
               <object class="GtkButton" id="open_button">
                 <property name="icon-name">document-open-symbolic</property>
                 <property name="tooltip-text">Open</property>
               </object>
             </child>
-            <child type="start">
+            <child>
               <object class="GtkButton" id="save_button">
                 <property name="icon-name">document-save-symbolic</property>
                 <property name="tooltip-text">Save</property>
               </object>
             </child>
-            <property name="title-widget">
-              <object class="AdwWindowTitle" id="window_title">
-                <property name="title" translatable="yes">Andromeda</property>
-              </object>
-            </property>
-            <child type="end">
-              <object class="GtkButton" id="tick_button">
-                <property name="icon-name">go-next-symbolic</property>
-                <property name="tooltip-text">Tick</property>
-              </object>
-            </child>
-            <child type="end">
-              <object class="GtkButton" id="start_button">
-                <property name="icon-name">media-playback-start-symbolic</property>
-                <property name="tooltip-text">Start</property>
-              </object>
-            </child>
-            <child type="end">
+            <child>
               <object class="GtkButton" id="stop_button">
                 <property name="icon-name">media-playback-stop-symbolic</property>
                 <property name="tooltip-text">Stop</property>
               </object>
             </child>
-            <child type="end">
+            <child>
+              <object class="GtkButton" id="start_button">
+                <property name="icon-name">media-playback-start-symbolic</property>
+                <property name="tooltip-text">Start</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="tick_button">
+                <property name="icon-name">go-next-symbolic</property>
+                <property name="tooltip-text">Tick</property>
+              </object>
+            </child>
+            <child>
               <object class="GtkButton" id="view_button">
                 <property name="icon-name">folder-pictures-symbolic</property>
                 <property name="tooltip-text">View</property>
               </object>
             </child>
-            <child type="end">
+            <child>
               <object class="GtkButton" id="randomize_button">
-                <property name="icon-name">application-x-executable-symbolic</property>
+                <property name="icon-name">view-refresh-symbolic</property>
                 <property name="tooltip-text">Randomize</property>
               </object>
             </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkSeparator">
+            <property name="orientation">horizontal</property>
           </object>
         </child>
         <child>
@@ -163,6 +170,6 @@
           </object>
         </child>
       </object>
-    </property>
+    </child>
   </template>
 </interface>
