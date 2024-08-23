@@ -21,7 +21,7 @@ const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 const MAX_ZOOM = 2400;
 const MIN_ZOOM = 0;
 
-const device_pixel_ratio = 2;
+const device_pixel_ratio = 1;
 
 pub const mach_core_options = core.ComptimeOptions{
     .use_wgpu = false,
@@ -40,30 +40,30 @@ anchor: ?struct { pos: core.Position, offset: @Vector(2, f32) },
 mouse: core.Position,
 zoom: f32,
 
-// reader: sho.Reader(SHM_NAME),
+reader: sho.Reader(SHM_NAME),
 positions: []const Point,
 socket: nng.Socket.SUB,
 
-const unit = 100;
-const positions: []const Point = &.{
-    .{ 0 * unit, -1 * unit },
-    .{ 0 * unit, 0 * unit },
-    .{ 0 * unit, 1 * unit },
-    .{ 1 * unit, -1 * unit },
-    .{ 1 * unit, 0 * unit },
-    .{ 1 * unit, 1 * unit },
-    .{ -1 * unit, -1 * unit },
-    .{ -1 * unit, 0 * unit },
-    .{ -1 * unit, 1 * unit },
-};
+// const unit = 100;
+// const positions: []const Point = &.{
+//     .{ 0 * unit, -1 * unit },
+//     .{ 0 * unit, 0 * unit },
+//     .{ 0 * unit, 1 * unit },
+//     .{ 1 * unit, -1 * unit },
+//     .{ 1 * unit, 0 * unit },
+//     .{ 1 * unit, 1 * unit },
+//     .{ -1 * unit, -1 * unit },
+//     .{ -1 * unit, 0 * unit },
+//     .{ -1 * unit, 1 * unit },
+// };
 
 pub fn init(app: *App) !void {
-    // app.reader = try sho.Reader(SHM_NAME).init();
-    app.node_count = @intCast(positions.len);
-    // app.node_count = @intCast(app.reader.map.len / @sizeOf(Point));
+    // app.node_count = @intCast(positions.len);
+    app.reader = try sho.Reader(SHM_NAME).init();
+    app.node_count = @intCast(app.reader.map.len / @sizeOf(Point));
 
-    // const positions_ptr = @as([*]const Point, @alignCast(@ptrCast(app.reader.data.ptr)));
-    // const positions = positions_ptr[0..app.node_count];
+    const positions_ptr = @as([*]const Point, @alignCast(@ptrCast(app.reader.data.ptr)));
+    const positions = positions_ptr[0..app.node_count];
     app.positions = positions;
 
     try core.init(.{});
@@ -88,13 +88,13 @@ pub fn init(app: *App) !void {
     core.setCursorShape(.pointing_hand);
 
     app.socket = try nng.Socket.SUB.open();
-    // try app.socket.set("sub:subscribe", "");
-    // try app.socket.dial(SOCKET_URL);
+    try app.socket.set("sub:subscribe", "");
+    try app.socket.dial(SOCKET_URL);
 }
 
 pub fn deinit(app: *App) void {
     app.socket.close();
-    // app.reader.deinit();
+    app.reader.deinit();
 
     app.pipeline.deinit();
 
@@ -152,7 +152,7 @@ pub fn update(app: *App) !bool {
                 }
             },
             .mouse_scroll => |e| {
-                var zoom = app.zoom - e.yoffset;
+                var zoom = app.zoom - 4 * e.yoffset;
                 zoom = @min(zoom, MAX_ZOOM);
                 zoom = @max(zoom, MIN_ZOOM);
                 if (zoom != app.zoom) {
@@ -184,12 +184,12 @@ pub fn update(app: *App) !bool {
         }
     }
 
-    // var dirty = false;
-    // while (try app.recv()) |_| dirty = true;
+    var dirty = false;
+    while (try app.recv()) |_| dirty = true;
 
-    // if (dirty) {
-    //     app.pipeline.updatePositions(app.positions);
-    // }
+    if (dirty) {
+        app.pipeline.updatePositions(app.positions);
+    }
 
     app.pipeline.render(&app.params);
 
@@ -205,19 +205,19 @@ pub fn update(app: *App) !bool {
     return false;
 }
 
-// fn recv(app: *App) !?u64 {
-//     const msg = app.socket.recv(.{ .NONBLOCK = true }) catch |err| switch (err) {
-//         error.AGAIN => return null,
-//         else => return err,
-//     };
+fn recv(app: *App) !?u64 {
+    const msg = app.socket.recv(.{ .NONBLOCK = true }) catch |err| switch (err) {
+        error.AGAIN => return null,
+        else => return err,
+    };
 
-//     const body = msg.body();
-//     if (body.len != 8) {
-//         return error.INVAL;
-//     }
+    const body = msg.body();
+    if (body.len != 8) {
+        return error.INVAL;
+    }
 
-//     return std.mem.readInt(u64, body[0..8], .big);
-// }
+    return std.mem.readInt(u64, body[0..8], .big);
+}
 
 fn getScale(zoom: f32) f32 {
     return 256 / ((std.math.pow(f32, zoom + 1, 2) - 1) / 256 + 256);

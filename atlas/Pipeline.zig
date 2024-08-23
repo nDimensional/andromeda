@@ -172,10 +172,22 @@ pub fn init(positions: []const Point) !Pipeline {
             .dst_factor = .one_minus_src_alpha,
             .operation = .add,
         },
+        // .color = .{
+        //     .src_factor = .one,
+        //     .dst_factor = .zero,
+        //     .operation = .add,
+        // },
+        // .alpha = .{
+        //     .src_factor = .one,
+        //     .dst_factor = .zero,
+        //     .operation = .add,
+        // },
     };
 
+    std.log.info("core.descriptor.format: {any}", .{core.descriptor.format});
     const color_target = gpu.ColorTargetState{
         .format = core.descriptor.format,
+        // .format = .rgba8_unorm_srgb,
         .blend = &blend,
         .write_mask = gpu.ColorWriteMaskFlags.all,
     };
