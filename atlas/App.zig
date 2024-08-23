@@ -44,14 +44,17 @@ zoom: f32,
 positions: []const Point,
 socket: nng.Socket.SUB,
 
+const unit = 100;
 const positions: []const Point = &.{
-    .{0, 0},
-    .{0, 1},
-    .{1, 1},
-    .{1, 0},
-    .{0, -1},
-    .{-1, 0},
-    .{-1, -1},
+    .{ 0 * unit, -1 * unit },
+    .{ 0 * unit, 0 * unit },
+    .{ 0 * unit, 1 * unit },
+    .{ 1 * unit, -1 * unit },
+    .{ 1 * unit, 0 * unit },
+    .{ 1 * unit, 1 * unit },
+    .{ -1 * unit, -1 * unit },
+    .{ -1 * unit, 0 * unit },
+    .{ -1 * unit, 1 * unit },
 };
 
 pub fn init(app: *App) !void {
