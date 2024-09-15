@@ -21,7 +21,7 @@ const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 const MAX_ZOOM = 2400;
 const MIN_ZOOM = 0;
 
-const device_pixel_ratio = 1;
+const device_pixel_ratio = 2;
 
 pub const mach_core_options = core.ComptimeOptions{
     .use_wgpu = false,

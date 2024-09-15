@@ -162,14 +162,14 @@ pub fn tick(self: *Engine) !f32 {
     self.max_y = 0;
 
     const temperature: Params.Force = @splat(self.params.temperature);
+    const center: Params.Force = @splat(self.params.center);
 
     var sum: f32 = 0;
     for (0..self.store.node_count) |i| {
         var f = self.node_forces[i];
         inline for (self.edge_forces) |edge_forces| f += edge_forces[i];
 
-        // center attraction
-        f += self.params.getAttraction(self.store.positions[i], .{ 0, 0 });
+        f += center * self.params.getAttraction(self.store.positions[i], .{ 0, 0 });
 
         sum += std.math.sqrt(@reduce(.Add, f * f));
 
