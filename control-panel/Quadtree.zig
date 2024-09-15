@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const forces = @import("forces.zig");
+const Params = @import("Params.zig");
 const Quadtree = @This();
 
 pub const Quadrant = enum(u2) {
@@ -176,17 +176,17 @@ fn insertNode(self: *Quadtree, body: u32, area: Area, idx: u32, position: @Vecto
     }
 }
 
-pub fn getForce(self: Quadtree, repulsion: f32, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
+pub fn getForce(self: Quadtree, params: *const Params, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
     if (self.tree.items.len == 0) {
         return .{ 0, 0 };
     } else {
-        return self.getForceBody(repulsion, 0, self.area.s, p, mass);
+        return self.getForceBody(params, 0, self.area.s, p, mass);
     }
 }
 
 const threshold = 0.5;
 
-fn getForceBody(self: Quadtree, repulsion: f32, body: u32, s: f32, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
+fn getForceBody(self: Quadtree, params: *const Params, body: u32, s: f32, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
     if (body >= self.tree.items.len) {
         @panic("index out of range");
     }
@@ -194,20 +194,20 @@ fn getForceBody(self: Quadtree, repulsion: f32, body: u32, s: f32, p: @Vector(2,
     const node = self.tree.items[body];
 
     if (node.idx != 0) {
-        return forces.getRepulsion(repulsion, p, mass, node.center, node.mass);
+        return params.getRepulsion(p, mass, node.center, node.mass);
     } else {
         const delta = node.center - p;
         const norm = @reduce(.Add, delta * delta);
         const d = std.math.sqrt(norm);
 
         if (s / d < threshold) {
-            return forces.getRepulsion(repulsion, p, mass, node.center, node.mass);
+            return params.getRepulsion(p, mass, node.center, node.mass);
         } else {
             var f = @Vector(2, f32){ 0, 0 };
-            if (node.sw != Body.NULL) f += self.getForceBody(repulsion, node.sw, s / 2, p, mass);
-            if (node.nw != Body.NULL) f += self.getForceBody(repulsion, node.nw, s / 2, p, mass);
-            if (node.se != Body.NULL) f += self.getForceBody(repulsion, node.se, s / 2, p, mass);
-            if (node.ne != Body.NULL) f += self.getForceBody(repulsion, node.ne, s / 2, p, mass);
+            if (node.sw != Body.NULL) f += self.getForceBody(params, node.sw, s / 2, p, mass);
+            if (node.nw != Body.NULL) f += self.getForceBody(params, node.nw, s / 2, p, mass);
+            if (node.se != Body.NULL) f += self.getForceBody(params, node.se, s / 2, p, mass);
+            if (node.ne != Body.NULL) f += self.getForceBody(params, node.ne, s / 2, p, mass);
 
             return f;
         }

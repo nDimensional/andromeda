@@ -154,6 +154,22 @@
                         <property name="hexpand">true</property>
                         <child>
                           <object class="GtkLabel">
+                            <property name="label">Center</property>
+                            <property name="halign">start</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="LogScale" id="center"></object>
+                        </child>
+                      </object>
+                    </child>
+
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="hexpand">true</property>
+                        <child>
+                          <object class="GtkLabel">
                             <property name="label">Temperature</property>
                             <property name="halign">start</property>
                           </object>
