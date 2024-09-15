@@ -22,7 +22,18 @@ const EXECUTABLE_PATH = build_options.atlas_path;
 const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
 const Status = enum { Stopped, Started };
-const scale = 1000;
+
+const attraction_scale = 100000;
+const repulsion_scale = 1;
+const center_scale = 1;
+const temperature_scale = 1000;
+
+const initial_params = Params{
+    .attraction = 0.0001,
+    .repulsion = 100.0,
+    .center = 0.0001,
+    .temperature = 0.1,
+};
 
 pub const ApplicationWindow = extern struct {
     parent_instance: Parent,
@@ -103,19 +114,14 @@ pub const ApplicationWindow = extern struct {
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
 
-        const initial_params = Params{
-            .attraction = 0.0001,
-            .repulsion = 100.0,
-            .center = 0.0001,
-            .temperature = 0.1,
-        };
+
 
         win.private().params = initial_params;
 
-        win.private().attraction.setValue(initial_params.attraction * scale);
-        win.private().repulsion.setValue(initial_params.repulsion * scale);
-        win.private().center.setValue(initial_params.center * scale);
-        win.private().temperature.setValue(initial_params.temperature * scale);
+        win.private().attraction.setValue(initial_params.attraction * attraction_scale);
+        win.private().repulsion.setValue(initial_params.repulsion * repulsion_scale);
+        win.private().center.setValue(initial_params.center * center_scale);
+        win.private().temperature.setValue(initial_params.temperature * temperature_scale);
 
         win.private().save_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
@@ -249,19 +255,19 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        win.private().params.attraction = @floatCast(value / 1000);
+        win.private().params.attraction = @floatCast(value / attraction_scale);
     }
 
     fn handleRepulsionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        win.private().params.repulsion = @floatCast(value / 1000);
+        win.private().params.repulsion = @floatCast(value / repulsion_scale);
     }
 
     fn handleCenterValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        win.private().params.center = @floatCast(value / 1000);
+        win.private().params.center = @floatCast(value / center_scale);
     }
 
     fn handleTemperatureValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        win.private().params.temperature = @floatCast(value / 1000);
+        win.private().params.temperature = @floatCast(value / temperature_scale);
     }
 
     fn loop(win: *ApplicationWindow) !void {

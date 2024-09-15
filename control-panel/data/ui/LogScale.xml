@@ -22,12 +22,12 @@
             <property name="vexpand">false</property>
             <property name="valign">center</property>
             <child>
-              <object class="GtkButton" id="scale_dec">
+              <object class="GtkButton" id="decrement">
                 <property name="icon-name">list-remove-symbolic</property>
               </object>
             </child>
             <child>
-              <object class="GtkButton" id="scale_inc">
+              <object class="GtkButton" id="increment">
                 <property name="icon-name">list-add-symbolic</property>
               </object>
             </child>

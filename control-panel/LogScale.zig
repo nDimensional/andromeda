@@ -4,11 +4,11 @@ const glib = @import("glib");
 const gobject = @import("gobject");
 
 const TEMPLATE = @embedFile("./data/ui/LogScale.xml");
-const EXPONENT = 10;
+const EXPONENT = std.math.e;
 const MIN_POW = 1;
 
 inline fn getPow(value: f64) f64 {
-    return std.math.floor(std.math.log10(value)) + 1;
+    return std.math.floor(std.math.log1p(value)) + 1;
 }
 
 pub const LogScale = extern struct {
@@ -20,8 +20,8 @@ pub const LogScale = extern struct {
         box: *gtk.Box,
         scale: *gtk.Scale,
         adjustment: *gtk.Adjustment,
-        scale_inc: *gtk.Button,
-        scale_dec: *gtk.Button,
+        increment: *gtk.Button,
+        decrement: *gtk.Button,
 
         pow: f64,
         var offset: c_int = 0;
@@ -68,10 +68,10 @@ pub const LogScale = extern struct {
         gtk.Widget.initTemplate(ls.as(gtk.Widget));
         gtk.Widget.setLayoutManager(ls.as(gtk.Widget), gtk.BinLayout.new().as(gtk.LayoutManager));
 
-        _ = gtk.Button.signals.clicked.connect(ls.private().scale_inc, *LogScale, &handleScaleInc, ls, .{});
-        _ = gtk.Button.signals.clicked.connect(ls.private().scale_dec, *LogScale, &handleScaleDec, ls, .{});
+        _ = gtk.Button.signals.clicked.connect(ls.private().increment, *LogScale, &handleScaleInc, ls, .{});
+        _ = gtk.Button.signals.clicked.connect(ls.private().decrement, *LogScale, &handleScaleDec, ls, .{});
 
-        const value = 22;
+        const value = 0;
         const pow = getPow(value);
         ls.private().pow = pow;
 
@@ -158,8 +158,8 @@ pub const LogScale = extern struct {
 
             class.bindTemplateChildPrivate("box", .{});
             class.bindTemplateChildPrivate("scale", .{});
-            class.bindTemplateChildPrivate("scale_dec", .{});
-            class.bindTemplateChildPrivate("scale_inc", .{});
+            class.bindTemplateChildPrivate("decrement", .{});
+            class.bindTemplateChildPrivate("increment", .{});
 
             signals.value_changed.impl.register(.{});
         }
