@@ -107,7 +107,6 @@ pub const LogScale = extern struct {
     }
 
     fn handleScaleDec(_: *gtk.Button, ls: *LogScale) callconv(.C) void {
-
         const pow = ls.private().pow;
         if (pow <= MIN_POW) return;
 

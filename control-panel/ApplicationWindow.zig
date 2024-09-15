@@ -15,12 +15,14 @@ const Progress = @import("Progress.zig");
 const Store = @import("Store.zig");
 const Engine = @import("Engine.zig");
 const LogScale = @import("LogScale.zig").LogScale;
+const Params = @import("Params.zig");
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 const EXECUTABLE_PATH = build_options.atlas_path;
 const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
 const Status = enum { Stopped, Started };
+const scale = 1000;
 
 pub const ApplicationWindow = extern struct {
     parent_instance: Parent,
@@ -39,6 +41,7 @@ pub const ApplicationWindow = extern struct {
 
         attraction: *LogScale,
         repulsion: *LogScale,
+        center: *LogScale,
         temperature: *LogScale,
 
         save_button: *gtk.Button,
@@ -49,6 +52,8 @@ pub const ApplicationWindow = extern struct {
         view_button: *gtk.Button,
         randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
+
+        params: Params,
 
         var offset: c_int = 0;
     };
@@ -95,15 +100,22 @@ pub const ApplicationWindow = extern struct {
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
+        _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
 
-        const attraction = 0.0001;
-        const repulsion = 100.0;
-        const temperature = 0.1;
+        const initial_params = Params{
+            .attraction = 0.0001,
+            .repulsion = 100.0,
+            .center = 0.0001,
+            .temperature = 0.1,
+        };
 
-        win.private().attraction.setValue(attraction * 1000);
-        win.private().repulsion.setValue(repulsion * 1000);
-        win.private().temperature.setValue(temperature * 1000);
+        win.private().params = initial_params;
+
+        win.private().attraction.setValue(initial_params.attraction * scale);
+        win.private().repulsion.setValue(initial_params.repulsion * scale);
+        win.private().center.setValue(initial_params.center * scale);
+        win.private().temperature.setValue(initial_params.temperature * scale);
 
         win.private().save_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
@@ -179,9 +191,10 @@ pub const ApplicationWindow = extern struct {
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const engine = win.private().engine orelse return;
 
-        engine.attraction = @floatCast(win.private().attraction.getValue() / 1000);
-        engine.repulsion = @floatCast(win.private().repulsion.getValue() / 1000);
-        engine.temperature = @floatCast(win.private().temperature.getValue() / 1000);
+        // engine.attraction = @floatCast(win.private().attraction.getValue() / scale);
+        // engine.repulsion = @floatCast(win.private().repulsion.getValue() / scale);
+        // engine.center = @floatCast(win.private().center.getValue() / scale);
+        // engine.temperature = @floatCast(win.private().temperature.getValue() / scale);
 
         engine.timer.reset();
         _ = engine.tick() catch |err| @panic(@errorName(err));
@@ -195,10 +208,11 @@ pub const ApplicationWindow = extern struct {
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         std.log.info("handleStartClicked", .{});
 
-        const engine = win.private().engine orelse return;
-        engine.attraction = @floatCast(win.private().attraction.getValue() / 1000);
-        engine.repulsion = @floatCast(win.private().repulsion.getValue() / 1000);
-        engine.temperature = @floatCast(win.private().temperature.getValue() / 1000);
+        // const engine = win.private().engine orelse return;
+        // engine.attraction = @floatCast(win.private().attraction.getValue() / scale);
+        // engine.repulsion = @floatCast(win.private().repulsion.getValue() / scale);
+        // engine.center = @floatCast(win.private().center.getValue() / scale);
+        // engine.temperature = @floatCast(win.private().temperature.getValue() / scale);
 
         win.private().open_button.as(gtk.Widget).setSensitive(0);
         win.private().save_button.as(gtk.Widget).setSensitive(0);
@@ -235,18 +249,19 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        const engine = win.private().engine orelse return;
-        engine.attraction = @floatCast(value / 1000);
+        win.private().params.attraction = @floatCast(value / 1000);
     }
 
     fn handleRepulsionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        const engine = win.private().engine orelse return;
-        engine.repulsion = @floatCast(value / 1000);
+        win.private().params.repulsion = @floatCast(value / 1000);
+    }
+
+    fn handleCenterValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
+        win.private().params.center = @floatCast(value / 1000);
     }
 
     fn handleTemperatureValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
-        const engine = win.private().engine orelse return;
-        engine.temperature = @floatCast(value / 1000);
+        win.private().params.temperature = @floatCast(value / 1000);
     }
 
     fn loop(win: *ApplicationWindow) !void {
@@ -303,6 +318,7 @@ pub const ApplicationWindow = extern struct {
 
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
+            class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
 
             class.bindTemplateChildPrivate("stack", .{});
@@ -329,7 +345,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
     const store = win.private().store orelse return;
-    const engine = Engine.init(c_allocator, store) catch |err| {
+    const engine = Engine.init(c_allocator, store, &win.private().params) catch |err| {
         std.log.err("failed to initialize engine: {s}", .{@errorName(err)});
         return;
     };

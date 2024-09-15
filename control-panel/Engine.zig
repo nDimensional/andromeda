@@ -3,9 +3,7 @@ const std = @import("std");
 const Quadtree = @import("Quadtree.zig");
 const Store = @import("Store.zig");
 
-const forces = @import("forces.zig");
-const Point = forces.Point;
-const Force = forces.Force;
+const Params = @import("Params.zig");
 
 const Engine = @This();
 
@@ -17,8 +15,8 @@ prng: std.rand.Xoshiro256,
 timer: std.time.Timer,
 store: *const Store,
 quads: [4]Quadtree,
-node_forces: []Force,
-edge_forces: [edge_pool_size][]Force,
+node_forces: []Params.Force,
+edge_forces: [edge_pool_size][]Params.Force,
 
 count: u64 = 0,
 min_y: f32 = 0,
@@ -26,17 +24,16 @@ max_y: f32 = 0,
 min_x: f32 = 0,
 max_x: f32 = 0,
 
-attraction: f32,
-repulsion: f32,
-temperature: f32,
+params: *const Params,
 
-pub fn init(allocator: std.mem.Allocator, store: *const Store) !*Engine {
+pub fn init(allocator: std.mem.Allocator, store: *const Store, params: *const Params) !*Engine {
     const area = Quadtree.Area{};
 
     const self = try allocator.create(Engine);
     self.allocator = allocator;
     self.prng = std.rand.Xoshiro256.init(0);
     self.store = store;
+    self.params = params;
     self.timer = try std.time.Timer.start();
 
     for (0..self.quads.len) |i| {
@@ -44,11 +41,11 @@ pub fn init(allocator: std.mem.Allocator, store: *const Store) !*Engine {
         self.quads[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)));
     }
 
-    self.node_forces = try allocator.alloc(Force, store.node_count);
+    self.node_forces = try allocator.alloc(Params.Force, store.node_count);
     for (self.node_forces) |*f| f.* = .{ 0, 0 };
 
     for (0..edge_pool_size) |i| {
-        self.edge_forces[i] = try allocator.alloc(Force, store.node_count);
+        self.edge_forces[i] = try allocator.alloc(Params.Force, store.node_count);
         for (self.edge_forces[i]) |*f| f.* = .{ 0, 0 };
     }
 
@@ -58,12 +55,10 @@ pub fn init(allocator: std.mem.Allocator, store: *const Store) !*Engine {
     self.min_y = 0;
     self.max_y = 0;
 
-    // self.attraction = 1.0;
-    // self.repulsion = 1.0;
-    // self.temperature = 10.0;
-    self.attraction = 0.0001;
-    self.repulsion = 100.0;
-    self.temperature = 0.1;
+    // self.attraction = 0.0001;
+    // self.repulsion = 100.0;
+    // self.center = self.attraction;
+    // self.temperature = 0.1;
 
     for (store.positions) |p| {
         self.min_x = @min(self.min_x, p[0]);
@@ -166,12 +161,15 @@ pub fn tick(self: *Engine) !f32 {
     self.min_y = 0;
     self.max_y = 0;
 
-    const temperature: Force = @splat(self.temperature);
+    const temperature: Params.Force = @splat(self.params.temperature);
 
     var sum: f32 = 0;
     for (0..self.store.node_count) |i| {
         var f = self.node_forces[i];
         inline for (self.edge_forces) |edge_forces| f += edge_forces[i];
+
+        // center attraction
+        f += self.params.getAttraction(self.store.positions[i], .{ 0, 0 });
 
         sum += std.math.sqrt(@reduce(.Add, f * f));
 
@@ -193,7 +191,7 @@ pub fn tick(self: *Engine) !f32 {
     return sum / @as(f32, @floatFromInt(self.store.node_count));
 }
 
-fn updateEdgeForces(self: *Engine, min: usize, max: usize, force: []Force) void {
+fn updateEdgeForces(self: *Engine, min: usize, max: usize, force: []Params.Force) void {
     for (min..max) |i| {
         if (i >= self.store.edge_count) {
             break;
@@ -201,24 +199,24 @@ fn updateEdgeForces(self: *Engine, min: usize, max: usize, force: []Force) void 
 
         const s = self.store.source[i] - 1;
         const t = self.store.target[i] - 1;
-        const f = forces.getAttraction(self.attraction, self.store.positions[s], self.store.positions[t]);
+        const f = self.params.getAttraction(self.store.positions[s], self.store.positions[t]);
 
         force[s] += f;
         force[t] -= f;
     }
 }
 
-fn updateNodeForces(self: *Engine, min: usize, max: usize, node_forces: []Force) void {
+fn updateNodeForces(self: *Engine, min: usize, max: usize, node_forces: []Params.Force) void {
     for (min..max) |i| {
         if (i >= self.store.node_count) {
             break;
         }
 
         const p = self.store.positions[i];
-        const mass = forces.getMass(self.store.z[i]);
+        const mass = self.params.getMass(self.store.z[i]);
 
         for (self.quads) |tree| {
-            node_forces[i] += tree.getForce(self.repulsion, p, mass);
+            node_forces[i] += tree.getForce(self.params, p, mass);
         }
     }
 }
@@ -230,7 +228,7 @@ pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
     while (i < self.store.node_count) : (i += 1) {
         const p = self.store.positions[i];
         if (tree.area.contains(p)) {
-            const mass = forces.getMass(self.store.z[i]);
+            const mass = self.params.getMass(self.store.z[i]);
             try tree.insert(i + 1, p, mass);
         }
     }
@@ -238,10 +236,10 @@ pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
     // std.log.info("rebuildQuad in {d}ms ({d} nodes)", .{ timer.read() / 1_000_000, tree.tree.items.len });
 }
 
-fn getNodeForce(self: *Engine, p: Point, mass: f32) Force {
-    var force = Force{ 0, 0 };
+fn getNodeForce(self: *Engine, p: Params.Point, mass: f32) Params.Force {
+    var force = Params.Force{ 0, 0 };
     for (0..self.store.node_count) |i| {
-        force += forces.getRepulsion(self.store.repulsion, p, mass, self.store.positions[i], forces.getMass(self.store.z[i]));
+        force += self.params.getRepulsion(p, mass, self.store.positions[i], self.params.getMass(self.store.z[i]));
     }
 
     return force;
