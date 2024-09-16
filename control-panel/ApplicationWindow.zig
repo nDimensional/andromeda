@@ -114,8 +114,6 @@ pub const ApplicationWindow = extern struct {
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
 
-
-
         win.private().params = initial_params;
 
         win.private().attraction.setValue(initial_params.attraction * attraction_scale);
@@ -175,7 +173,7 @@ pub const ApplicationWindow = extern struct {
 
     fn handleSaveClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         std.log.info("handleSaveClicked", .{});
-        _ = win;
+        if (win.private().store) |store| store.save() catch |err| @panic(@errorName(err));
     }
 
     fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
