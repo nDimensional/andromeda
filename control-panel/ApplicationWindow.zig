@@ -172,8 +172,9 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleSaveClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleSaveClicked", .{});
+        std.log.info("Saving...", .{});
         if (win.private().store) |store| store.save() catch |err| @panic(@errorName(err));
+        std.log.info("Saved.", .{});
     }
 
     fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
@@ -195,14 +196,7 @@ pub const ApplicationWindow = extern struct {
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const engine = win.private().engine orelse return;
 
-        // engine.attraction = @floatCast(win.private().attraction.getValue() / scale);
-        // engine.repulsion = @floatCast(win.private().repulsion.getValue() / scale);
-        // engine.center = @floatCast(win.private().center.getValue() / scale);
-        // engine.temperature = @floatCast(win.private().temperature.getValue() / scale);
-
-        engine.timer.reset();
         _ = engine.tick() catch |err| @panic(@errorName(err));
-        std.log.info("tick in {d}ms", .{engine.timer.lap() / 1_000_000});
 
         const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
         std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
@@ -211,12 +205,6 @@ pub const ApplicationWindow = extern struct {
 
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         std.log.info("handleStartClicked", .{});
-
-        // const engine = win.private().engine orelse return;
-        // engine.attraction = @floatCast(win.private().attraction.getValue() / scale);
-        // engine.repulsion = @floatCast(win.private().repulsion.getValue() / scale);
-        // engine.center = @floatCast(win.private().center.getValue() / scale);
-        // engine.temperature = @floatCast(win.private().temperature.getValue() / scale);
 
         win.private().open_button.as(gtk.Widget).setSensitive(0);
         win.private().save_button.as(gtk.Widget).setSensitive(0);

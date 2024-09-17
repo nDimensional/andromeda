@@ -55,11 +55,6 @@ pub fn init(allocator: std.mem.Allocator, store: *const Store, params: *const Pa
     self.min_y = 0;
     self.max_y = 0;
 
-    // self.attraction = 0.0001;
-    // self.repulsion = 100.0;
-    // self.center = self.attraction;
-    // self.temperature = 0.1;
-
     for (store.positions) |p| {
         self.min_x = @min(self.min_x, p[0]);
         self.max_x = @max(self.max_x, p[0]);
@@ -110,6 +105,7 @@ pub fn randomize(self: *Engine, s: f32) void {
 }
 
 pub fn tick(self: *Engine) !f32 {
+    std.log.info("tick {d}", .{self.count});
     self.timer.reset();
 
     {
@@ -125,7 +121,7 @@ pub fn tick(self: *Engine) !f32 {
 
         for (0..4) |i| pool[i].join();
 
-        // std.log.info("rebuilt quadtree in {d}ms", .{self.timer.lap() / 1_000_000});
+        std.log.info("rebuilt quadtree in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
     {
@@ -139,7 +135,7 @@ pub fn tick(self: *Engine) !f32 {
 
         for (0..node_pool_size) |i| pool[i].join();
 
-        // std.log.info("applied node forces in {d}ms", .{self.timer.lap() / 1_000_000});
+        std.log.info("updated node forces in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
     {
@@ -153,7 +149,7 @@ pub fn tick(self: *Engine) !f32 {
 
         for (0..edge_pool_size) |i| pool[i].join();
 
-        // std.log.info("applied edge forces in {d}ms", .{self.timer.lap() / 1_000_000});
+        std.log.info("updated edge forces in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
     self.min_x = 0;
@@ -187,8 +183,14 @@ pub fn tick(self: *Engine) !f32 {
         inline for (self.edge_forces) |edge_forces| edge_forces[i] = .{ 0, 0 };
     }
 
+    std.log.info("applied forces in {d}ms", .{self.timer.lap() / 1_000_000});
+
     self.count += 1;
-    return sum / @as(f32, @floatFromInt(self.store.node_count));
+
+    const energy = sum / @as(f32, @floatFromInt(self.store.node_count));
+    std.log.info("energy: {d}", .{energy});
+
+    return energy;
 }
 
 fn updateEdgeForces(self: *Engine, min: usize, max: usize, force: []Params.Force) void {
@@ -229,7 +231,7 @@ pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
         const p = self.store.positions[i];
         if (tree.area.contains(p)) {
             const mass = self.params.getMass(self.store.z[i]);
-            try tree.insert(i + 1, p, mass);
+            try tree.insert(p, mass);
         }
     }
 

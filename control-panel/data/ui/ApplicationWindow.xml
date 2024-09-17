@@ -2,8 +2,6 @@
 <interface>
   <template class="AndromedaApplicationWindow" parent="GtkApplicationWindow">
     <property name="title" translatable="yes">Andromeda</property>
-    <property name="default-width">400</property>
-    <property name="default-height">320</property>
     <child>
       <object class="GtkBox">
         <property name="orientation">vertical</property>

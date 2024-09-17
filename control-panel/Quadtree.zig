@@ -62,7 +62,6 @@ pub const Area = packed struct {
 pub const Body = packed struct {
     pub const NULL = std.math.maxInt(u32);
 
-    idx: u32 = 0,
     center: @Vector(2, f32) = .{ 0, 0 },
     mass: f32 = 0,
     sw: u32 = NULL,
@@ -70,15 +69,11 @@ pub const Body = packed struct {
     se: u32 = NULL,
     ne: u32 = NULL,
 
-    pub fn update(body: *Body, point: @Vector(2, f32), mass: f32) void {
-        const node_mass: @Vector(2, f32) = @splat(body.mass);
-        const point_mass: @Vector(2, f32) = @splat(mass);
-        const total_mass: @Vector(2, f32) = @splat(body.mass + mass);
-        body.center = (body.center * node_mass + point * point_mass) / total_mass;
-        body.mass = body.mass + mass;
+    pub inline fn isEmpty(body: Body) bool {
+        return body.sw == NULL and body.nw == NULL and body.se == NULL and body.ne == NULL;
     }
 
-    pub fn getQuadrant(body: Body, quadrant: Quadrant) u32 {
+    pub inline fn getQuadrant(body: Body, quadrant: Quadrant) u32 {
         return switch (quadrant) {
             .sw => body.sw,
             .nw => body.nw,
@@ -87,13 +82,21 @@ pub const Body = packed struct {
         };
     }
 
-    pub fn setQuadrant(body: *Body, quadrant: Quadrant, index: u32) void {
+    pub inline fn setQuadrant(body: *Body, quadrant: Quadrant, index: u32) void {
         switch (quadrant) {
             .sw => body.sw = index,
             .nw => body.nw = index,
             .se => body.se = index,
             .ne => body.ne = index,
         }
+    }
+
+    pub fn update(body: *Body, point: @Vector(2, f32), mass: f32) void {
+        const node_mass: @Vector(2, f32) = @splat(body.mass);
+        const point_mass: @Vector(2, f32) = @splat(mass);
+        const total_mass: @Vector(2, f32) = @splat(body.mass + mass);
+        body.center = (body.center * node_mass + point * point_mass) / total_mass;
+        body.mass = body.mass + mass;
     }
 };
 
@@ -113,23 +116,19 @@ pub fn reset(self: *Quadtree, area: Area) void {
     self.tree.clearRetainingCapacity();
 }
 
-pub fn insert(self: *Quadtree, idx: u32, position: @Vector(2, f32), mass: f32) !void {
-    if (idx == 0) {
-        @panic("expected idx != 0");
-    }
-
+pub fn insert(self: *Quadtree, position: @Vector(2, f32), mass: f32) !void {
     if (self.tree.items.len == 0) {
-        try self.tree.append(Body{ .idx = idx, .center = position, .mass = mass });
+        try self.tree.append(Body{ .center = position, .mass = mass });
     } else {
         if (self.area.s == 0) {
             @panic("expected self.area.s > 0");
         }
 
-        try self.insertNode(0, self.area, idx, position, mass);
+        try self.insertNode(0, self.area, position, mass);
     }
 }
 
-fn insertNode(self: *Quadtree, body: u32, area: Area, idx: u32, position: @Vector(2, f32), mass: f32) !void {
+fn insertNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32), mass: f32) !void {
     if (body >= self.tree.items.len) {
         @panic("index out of range");
     }
@@ -138,28 +137,13 @@ fn insertNode(self: *Quadtree, body: u32, area: Area, idx: u32, position: @Vecto
         @panic("expected area.s > 0");
     }
 
-    if (self.tree.items[body].idx != 0) {
+    if (self.tree.items[body].isEmpty()) {
         const node = self.tree.items[body];
-        if (@reduce(.And, node.center == position)) {
-            const offset: @Vector(2, f32) = @splat(area.s / 4);
-            const i_1: u32 = @intCast(self.tree.items.len);
-            try self.tree.append(.{ .idx = node.idx, .mass = node.mass, .center = node.center - offset });
 
-            self.tree.items[body].idx = 0;
-            self.tree.items[body].setQuadrant(.sw, i_1);
+        const index: u32 = @intCast(self.tree.items.len);
+        try self.tree.append(node);
 
-            const i_2: u32 = @intCast(self.tree.items.len);
-            try self.tree.append(.{ .idx = idx, .center = position + offset, .mass = mass });
-            self.tree.items[body].setQuadrant(.ne, i_2);
-
-            return;
-        } else {
-            const index: u32 = @intCast(self.tree.items.len);
-            try self.tree.append(node);
-
-            self.tree.items[body].idx = 0;
-            self.tree.items[body].setQuadrant(area.locate(node.center), index);
-        }
+        self.tree.items[body].setQuadrant(area.locate(node.center), index);
     }
 
     self.tree.items[body].update(position, mass);
@@ -168,10 +152,17 @@ fn insertNode(self: *Quadtree, body: u32, area: Area, idx: u32, position: @Vecto
     const child = self.tree.items[body].getQuadrant(quadrant);
 
     if (child != Body.NULL) {
-        try self.insertNode(child, area.divide(quadrant), idx, position, mass);
+        const center = self.tree.items[child].center;
+        if (@reduce(.And, center == position)) {
+            std.log.info("self.tree.items[child].center == position", .{});
+            self.tree.items[child].mass += mass;
+            return;
+        }
+
+        try self.insertNode(child, area.divide(quadrant), position, mass);
     } else {
         const index: u32 = @intCast(self.tree.items.len);
-        try self.tree.append(.{ .idx = idx, .center = position, .mass = mass });
+        try self.tree.append(.{ .center = position, .mass = mass });
         self.tree.items[body].setQuadrant(quadrant, index);
     }
 }
@@ -192,26 +183,25 @@ fn getForceBody(self: Quadtree, params: *const Params, body: u32, s: f32, p: @Ve
     }
 
     const node = self.tree.items[body];
-
-    if (node.idx != 0) {
+    if (node.isEmpty()) {
         return params.getRepulsion(p, mass, node.center, node.mass);
-    } else {
-        const delta = node.center - p;
-        const norm = @reduce(.Add, delta * delta);
-        const d = std.math.sqrt(norm);
-
-        if (s / d < threshold) {
-            return params.getRepulsion(p, mass, node.center, node.mass);
-        } else {
-            var f = @Vector(2, f32){ 0, 0 };
-            if (node.sw != Body.NULL) f += self.getForceBody(params, node.sw, s / 2, p, mass);
-            if (node.nw != Body.NULL) f += self.getForceBody(params, node.nw, s / 2, p, mass);
-            if (node.se != Body.NULL) f += self.getForceBody(params, node.se, s / 2, p, mass);
-            if (node.ne != Body.NULL) f += self.getForceBody(params, node.ne, s / 2, p, mass);
-
-            return f;
-        }
     }
+
+    const delta = node.center - p;
+    const norm = @reduce(.Add, delta * delta);
+    const d = std.math.sqrt(norm);
+
+    if (s / d < threshold) {
+        return params.getRepulsion(p, mass, node.center, node.mass);
+    }
+
+    var f = @Vector(2, f32){ 0, 0 };
+    if (node.sw != Body.NULL) f += self.getForceBody(params, node.sw, s / 2, p, mass);
+    if (node.nw != Body.NULL) f += self.getForceBody(params, node.nw, s / 2, p, mass);
+    if (node.se != Body.NULL) f += self.getForceBody(params, node.se, s / 2, p, mass);
+    if (node.ne != Body.NULL) f += self.getForceBody(params, node.ne, s / 2, p, mass);
+
+    return f;
 }
 
 pub fn print(self: *Quadtree, log: std.fs.File.Writer) !void {
