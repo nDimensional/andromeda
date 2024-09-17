@@ -178,7 +178,7 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleStopClicked", .{});
+        std.log.info("Stopping...", .{});
         win.private().open_button.as(gtk.Widget).setSensitive(1);
         win.private().save_button.as(gtk.Widget).setSensitive(1);
         win.private().tick_button.as(gtk.Widget).setSensitive(1);
@@ -264,6 +264,7 @@ pub const ApplicationWindow = extern struct {
             std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
             try win.private().socket.send(msg, .{});
         }
+        std.log.info("Stopped.", .{});
     }
 
     fn openFile(win: *ApplicationWindow, file: *gio.File) void {
