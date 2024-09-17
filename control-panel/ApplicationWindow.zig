@@ -69,6 +69,7 @@ pub const ApplicationWindow = extern struct {
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
+        speed: *gtk.Label,
 
         params: Params,
 
@@ -157,7 +158,7 @@ pub const ApplicationWindow = extern struct {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
     }
 
-    fn updateStatus(win: *ApplicationWindow, count: u64, energy: f32) !void {
+    fn updateStatus(win: *ApplicationWindow, count: u64, energy: f32, time: u64) !void {
         const t = win.private().timer.read() / 1_000_000;
         if (t < 100) {
             return;
@@ -167,8 +168,11 @@ pub const ApplicationWindow = extern struct {
         const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}", .{count});
         win.private().ticker.setMarkup(ticker_markup);
 
-        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.1}", .{energy});
+        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}", .{energy});
         win.private().energy.setMarkup(energy_markup);
+
+        const speed_markup = try std.fmt.bufPrintZ(&label_buffer, "Time: {d}ms", .{time});
+        win.private().speed.setMarkup(speed_markup);
     }
 
     fn handleOpenClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
@@ -209,8 +213,10 @@ pub const ApplicationWindow = extern struct {
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const engine = win.private().engine orelse return;
 
+        const start = win.private().timer.read();
         const energy = engine.tick() catch |err| @panic(@errorName(err));
-        win.updateStatus(engine.count, energy) catch |err| @panic(@errorName(err));
+        const time = win.private().timer.read() - start;
+        win.updateStatus(engine.count, energy, time / 1_000_000) catch |err| @panic(@errorName(err));
 
         const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
         std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
@@ -278,8 +284,10 @@ pub const ApplicationWindow = extern struct {
     fn loop(win: *ApplicationWindow) !void {
         const engine = win.private().engine orelse return;
         while (win.private().status == .Started) {
+            const start = win.private().timer.read();
             const energy = try engine.tick();
-            try win.updateStatus(engine.count, energy);
+            const time = win.private().timer.read() - start;
+            try win.updateStatus(engine.count, energy, time / 1_000_000);
 
             const msg = try nng.Message.init(8);
             std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
@@ -336,6 +344,7 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("progress_bar", .{});
             class.bindTemplateChildPrivate("ticker", .{});
             class.bindTemplateChildPrivate("energy", .{});
+            class.bindTemplateChildPrivate("speed", .{});
 
             class.bindTemplateChildPrivate("save_button", .{});
             class.bindTemplateChildPrivate("open_button", .{});
