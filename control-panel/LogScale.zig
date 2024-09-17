@@ -132,6 +132,10 @@ pub const LogScale = extern struct {
         adjustment.setUpper(upper);
         adjustment.setStepIncrement(step);
         adjustment.setPageIncrement(page);
+
+        const scale = ls.private().scale;
+        scale.setDrawValue(0);
+        scale.setDrawValue(1);
     }
 
     fn private(ls: *LogScale) *Private {
