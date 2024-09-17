@@ -205,9 +205,8 @@ pub const ApplicationWindow = extern struct {
         writer.print("Stopping...\n", .{}) catch |err| @panic(@errorName(err));
 
         win.private().status = .Stopped;
-        if (win.private().engine_thread) |engine_thread| {
-            engine_thread.detach();
-        }
+        win.private().stop_button.as(gtk.Widget).setSensitive(0);
+        if (win.private().engine_thread) |engine_thread| engine_thread.detach();
     }
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {

@@ -7,8 +7,14 @@ const Params = @import("Params.zig");
 
 const Engine = @This();
 
-const node_pool_size = 16;
-const edge_pool_size = 16;
+const node_pool_size = 15;
+const edge_pool_size = 15;
+
+var energy_pool: [node_pool_size]f32 = undefined;
+var min_x_pool: [node_pool_size]f32 = undefined;
+var max_x_pool: [node_pool_size]f32 = undefined;
+var min_y_pool: [node_pool_size]f32 = undefined;
+var max_y_pool: [node_pool_size]f32 = undefined;
 
 allocator: std.mem.Allocator,
 prng: std.rand.Xoshiro256,
@@ -109,6 +115,20 @@ pub fn tick(self: *Engine) !f32 {
     self.timer.reset();
 
     {
+        const edge_count = self.store.edge_count;
+        var pool: [edge_pool_size]std.Thread = undefined;
+        for (0..edge_pool_size) |i| {
+            const min = i * edge_count / edge_pool_size;
+            const max = (i + 1) * edge_count / edge_pool_size;
+            pool[i] = try std.Thread.spawn(.{}, updateEdgeForces, .{ self, min, max, self.edge_forces[i] });
+        }
+
+        for (0..edge_pool_size) |i| pool[i].join();
+
+        std.log.info("updated edge forces in {d}ms", .{self.timer.lap() / 1_000_000});
+    }
+
+    {
         const s = try self.getBoundingSize();
         const area = Quadtree.Area{ .s = s };
 
@@ -130,7 +150,7 @@ pub fn tick(self: *Engine) !f32 {
         for (0..node_pool_size) |i| {
             const min = i * node_count / node_pool_size;
             const max = (i + 1) * node_count / node_pool_size;
-            pool[i] = try std.Thread.spawn(.{}, updateNodeForces, .{ self, min, max, self.node_forces });
+            pool[i] = try std.Thread.spawn(.{}, updateNodeForces, .{ self, min, max, i });
         }
 
         for (0..node_pool_size) |i| pool[i].join();
@@ -138,54 +158,48 @@ pub fn tick(self: *Engine) !f32 {
         std.log.info("updated node forces in {d}ms", .{self.timer.lap() / 1_000_000});
     }
 
-    {
-        const edge_count = self.store.edge_count;
-        var pool: [edge_pool_size]std.Thread = undefined;
-        for (0..edge_pool_size) |i| {
-            const min = i * edge_count / edge_pool_size;
-            const max = (i + 1) * edge_count / edge_pool_size;
-            pool[i] = try std.Thread.spawn(.{}, updateEdgeForces, .{ self, min, max, self.edge_forces[i] });
-        }
-
-        for (0..edge_pool_size) |i| pool[i].join();
-
-        std.log.info("updated edge forces in {d}ms", .{self.timer.lap() / 1_000_000});
-    }
-
     self.min_x = 0;
     self.max_x = 0;
     self.min_y = 0;
     self.max_y = 0;
 
-    const temperature: Params.Force = @splat(self.params.temperature);
-    const center: Params.Force = @splat(self.params.center);
+    // const temperature: Params.Force = @splat(self.params.temperature);
+    // const center: Params.Force = @splat(self.params.center);
 
-    var sum: f32 = 0;
-    for (0..self.store.node_count) |i| {
-        var f = self.node_forces[i];
-        inline for (self.edge_forces) |edge_forces| f += edge_forces[i];
+    // var sum: f32 = 0;
+    // for (0..self.store.node_count) |i| {
+    //     var f = self.node_forces[i];
+    //     inline for (self.edge_forces) |edge_forces| f += edge_forces[i];
 
-        f += center * self.params.getAttraction(self.store.positions[i], .{ 0, 0 });
+    //     f += center * self.params.getAttraction(self.store.positions[i], .{ 0, 0 });
 
-        sum += std.math.sqrt(@reduce(.Add, f * f));
+    //     sum += std.math.sqrt(@reduce(.Add, f * f));
 
-        f *= temperature;
+    //     f *= temperature;
 
-        const p = self.store.positions[i] + f;
-        self.store.positions[i] = p;
+    //     const p = self.store.positions[i] + f;
+    //     self.store.positions[i] = p;
 
-        self.min_x = @min(self.min_x, p[0]);
-        self.max_x = @max(self.max_x, p[0]);
-        self.min_y = @min(self.min_y, p[1]);
-        self.max_y = @max(self.max_y, p[1]);
+    //     self.min_x = @min(self.min_x, p[0]);
+    //     self.max_x = @max(self.max_x, p[0]);
+    //     self.min_y = @min(self.min_y, p[1]);
+    //     self.max_y = @max(self.max_y, p[1]);
 
-        self.node_forces[i] = .{ 0, 0 };
-        inline for (self.edge_forces) |edge_forces| edge_forces[i] = .{ 0, 0 };
-    }
+    //     self.node_forces[i] = .{ 0, 0 };
+    //     inline for (self.edge_forces) |edge_forces| edge_forces[i] = .{ 0, 0 };
+    // }
+
+    for (min_x_pool) |x| self.min_x = @min(self.min_x, x);
+    for (max_x_pool) |x| self.max_x = @max(self.max_x, x);
+    for (min_y_pool) |y| self.min_y = @min(self.min_y, y);
+    for (max_y_pool) |y| self.max_y = @max(self.max_y, y);
 
     std.log.info("applied forces in {d}ms", .{self.timer.lap() / 1_000_000});
 
     self.count += 1;
+
+    var sum: f32 = 0;
+    for (energy_pool) |f| sum += f;
 
     const energy = sum / @as(f32, @floatFromInt(self.store.node_count));
     std.log.info("energy: {d}", .{energy});
@@ -208,19 +222,48 @@ fn updateEdgeForces(self: *Engine, min: usize, max: usize, force: []Params.Force
     }
 }
 
-fn updateNodeForces(self: *Engine, min: usize, max: usize, node_forces: []Params.Force) void {
+fn updateNodeForces(self: *Engine, min: usize, max: usize, bucket: usize) void {
+    const temperature: Params.Force = @splat(self.params.temperature);
+    const center: Params.Force = @splat(self.params.center);
+
+    min_x_pool[bucket] = 0;
+    max_x_pool[bucket] = 0;
+    min_y_pool[bucket] = 0;
+    max_y_pool[bucket] = 0;
+
+    var sum: f32 = 0;
     for (min..max) |i| {
         if (i >= self.store.node_count) {
             break;
         }
 
-        const p = self.store.positions[i];
         const mass = self.params.getMass(self.store.z[i]);
+        var p = self.store.positions[i];
+
+        var f: @Vector(2, f32) = .{ 0, 0 };
+        inline for (self.edge_forces) |edge_forces| {
+            f += edge_forces[i];
+            edge_forces[i] = .{ 0, 0 };
+        }
 
         for (self.quads) |tree| {
-            node_forces[i] += tree.getForce(self.params, p, mass);
+            f += tree.getForce(self.params, p, mass);
         }
+
+        f += center * self.params.getAttraction(p, .{ 0, 0 });
+
+        p += f * temperature;
+        self.store.positions[i] = p;
+
+        min_x_pool[bucket] = @min(min_x_pool[bucket], p[0]);
+        max_x_pool[bucket] = @max(max_x_pool[bucket], p[0]);
+        min_y_pool[bucket] = @min(min_y_pool[bucket], p[1]);
+        max_y_pool[bucket] = @max(max_y_pool[bucket], p[1]);
+
+        sum += std.math.sqrt(@reduce(.Add, f * f));
     }
+
+    energy_pool[bucket] = sum;
 }
 
 pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
