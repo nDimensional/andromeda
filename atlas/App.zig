@@ -19,7 +19,7 @@ const allocator = std.heap.c_allocator;
 const SHM_NAME = "ANDROMEDA";
 const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
-const MAX_ZOOM = 2400;
+const MAX_ZOOM = 8192;
 const MIN_ZOOM = 0;
 
 const device_pixel_ratio = if (builtin.os.tag.isDarwin()) 2 else 1;
