@@ -35,6 +35,8 @@ const initial_params = Params{
     .temperature = 0.1,
 };
 
+var label_buffer: [128]u8 = undefined;
+
 pub const ApplicationWindow = extern struct {
     parent_instance: Parent,
 
@@ -47,6 +49,7 @@ pub const ApplicationWindow = extern struct {
         engine_thread: ?std.Thread,
         socket: nng.Socket.PUB,
         status: Status = .Stopped,
+        timer: std.time.Timer,
 
         stack: *gtk.Stack,
 
@@ -63,6 +66,9 @@ pub const ApplicationWindow = extern struct {
         view_button: *gtk.Button,
         randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
+
+        ticker: *gtk.Label,
+        energy: *gtk.Label,
 
         params: Params,
 
@@ -96,6 +102,7 @@ pub const ApplicationWindow = extern struct {
         win.private().store = null;
         win.private().engine = null;
         win.private().status = .Stopped;
+        win.private().timer = std.time.Timer.start() catch |err| @panic(@errorName(err));
 
         const socket = nng.Socket.PUB.open() catch |err| @panic(@errorName(err));
         socket.listen(SOCKET_URL) catch |err| @panic(@errorName(err));
@@ -153,6 +160,20 @@ pub const ApplicationWindow = extern struct {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
     }
 
+    fn updateStatus(win: *ApplicationWindow, count: u64, energy: f32) !void {
+        const t = win.private().timer.read() / 1_000_000;
+        if (t < 100) {
+            return;
+        }
+
+        win.private().timer.reset();
+        const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}", .{count});
+        win.private().ticker.setMarkup(ticker_markup);
+
+        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.1}", .{energy});
+        win.private().energy.setMarkup(energy_markup);
+    }
+
     fn handleOpenClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const chooser = gtk.FileChooserNative.new(
             intl.gettext("Open graph"),
@@ -190,7 +211,8 @@ pub const ApplicationWindow = extern struct {
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const engine = win.private().engine orelse return;
 
-        _ = engine.tick() catch |err| @panic(@errorName(err));
+        const energy = engine.tick() catch |err| @panic(@errorName(err));
+        win.updateStatus(engine.count, energy) catch |err| @panic(@errorName(err));
 
         const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
         std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
@@ -215,13 +237,13 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleViewClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleViewClicked", .{});
+        std.log.info("Opening atlas", .{});
         win.private().child_process = spawn(c_allocator, &.{EXECUTABLE_PATH}, null);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
     }
 
     fn handleRandomizeClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("handleRandomizeClicked", .{});
+        std.log.info("Randomizing...", .{});
 
         const store = win.private().store orelse return;
         const engine = win.private().engine orelse return;
@@ -232,6 +254,7 @@ pub const ApplicationWindow = extern struct {
         const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
         std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
         win.private().socket.send(msg, .{}) catch |err| @panic(@errorName(err));
+        std.log.info("Randomized.", .{});
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -253,7 +276,9 @@ pub const ApplicationWindow = extern struct {
     fn loop(win: *ApplicationWindow) !void {
         const engine = win.private().engine orelse return;
         while (win.private().status == .Started) {
-            _ = try engine.tick();
+            const energy = try engine.tick();
+            try win.updateStatus(engine.count, energy);
+
             const msg = try nng.Message.init(8);
             std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
             try win.private().socket.send(msg, .{});
@@ -271,7 +296,7 @@ pub const ApplicationWindow = extern struct {
 
     fn openFile(win: *ApplicationWindow, file: *gio.File) void {
         const path = file.getPath() orelse return;
-        std.log.info("got file: {s}", .{path});
+        std.log.info("Loading {s}", .{path});
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
@@ -302,6 +327,11 @@ pub const ApplicationWindow = extern struct {
             const template = glib.Bytes.newStatic(TEMPLATE.ptr, TEMPLATE.len);
             class.as(gtk.Widget.Class).setTemplate(template);
 
+            class.bindTemplateChildPrivate("stack", .{});
+            class.bindTemplateChildPrivate("progress_bar", .{});
+            class.bindTemplateChildPrivate("ticker", .{});
+            class.bindTemplateChildPrivate("energy", .{});
+
             class.bindTemplateChildPrivate("save_button", .{});
             class.bindTemplateChildPrivate("open_button", .{});
             class.bindTemplateChildPrivate("tick_button", .{});
@@ -309,14 +339,11 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("stop_button", .{});
             class.bindTemplateChildPrivate("view_button", .{});
             class.bindTemplateChildPrivate("randomize_button", .{});
-            class.bindTemplateChildPrivate("progress_bar", .{});
 
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
-
-            class.bindTemplateChildPrivate("stack", .{});
         }
 
         fn bindTemplateChildPrivate(class: *Class, comptime name: [:0]const u8, comptime options: gtk.ext.BindTemplateChildOptions) void {
@@ -333,7 +360,7 @@ fn handleOpenResponse(chooser: *gtk.FileChooserNative, _: c_int, win: *Applicati
 }
 
 fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopaque) callconv(.C) void {
-    std.log.info("loadResultCallback", .{});
+    std.log.info("Finished loading.", .{});
 
     _ = res;
 
@@ -354,7 +381,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
-    gtk.Stack.setVisibleChildName(win.private().stack, "controls");
+    gtk.Stack.setVisibleChildName(win.private().stack, "status");
 }
 
 fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, env_map: ?*const std.process.EnvMap) ?*std.process.Child {

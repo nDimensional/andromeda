@@ -53,8 +53,9 @@
             </child>
             <child>
               <object class="GtkButton" id="randomize_button">
-                <property name="icon-name">view-refresh-symbolic</property>
-                <property name="tooltip-text">Randomize</property>
+                <!-- <property name="icon-name">view-refresh-symbolic</property> -->
+                <!-- <property name="tooltip-text">Randomize</property> -->
+                <property name="label">Randomize</property>
               </object>
             </child>
           </object>
@@ -65,22 +66,104 @@
           </object>
         </child>
         <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <property name="spacing">12</property>
+            <property name="margin-start">10</property>
+            <property name="margin-end">10</property>
+            <property name="margin-top">10</property>
+            <property name="margin-bottom">10</property>
+
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="hexpand">true</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Attraction</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="LogScale" id="attraction"></object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="hexpand">true</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Repulsion</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="LogScale" id="repulsion"></object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="hexpand">true</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Center</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="LogScale" id="center"></object>
+                </child>
+              </object>
+            </child>
+
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="hexpand">true</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label">Temperature</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="LogScale" id="temperature"></object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+
+        <child>
+          <object class="GtkSeparator">
+            <property name="orientation">horizontal</property>
+          </object>
+        </child>
+
+        <child>
           <object class="GtkStack" id="stack">
             <child>
               <object class="GtkStackPage">
                 <property name="name">landing</property>
                 <property name="child">
-                  <object class="GtkBox" id="landing-content">
+                  <object class="GtkBox">
                     <property name="orientation">vertical</property>
                   </object>
                 </property>
               </object>
             </child>
+
             <child>
               <object class="GtkStackPage">
                 <property name="name">loading</property>
                 <property name="child">
-                  <object class="GtkBox" id="loading-content">
+                  <object class="GtkBox">
                     <property name="orientation">vertical</property>
                     <property name="spacing">8</property>
                     <property name="margin-start">10</property>
@@ -88,13 +171,13 @@
                     <property name="margin-top">10</property>
                     <property name="margin-bottom">10</property>
                     <child>
-                        <object class="GtkBox">
+                      <object class="GtkBox">
                         <property name="orientation">vertical</property>
                         <property name="spacing">8</property>
                         <property name="margin-top">10</property>
                         <property name="margin-bottom">10</property>
                         <child>
-                            <object class="GtkProgressBar" id="progress_bar" />
+                          <object class="GtkProgressBar" id="progress_bar" />
                         </child>
                       </object>
                     </child>
@@ -102,79 +185,27 @@
                 </property>
               </object>
             </child>
+
             <child>
               <object class="GtkStackPage">
-                <property name="name">controls</property>
+                <property name="name">status</property>
                 <property name="child">
                   <object class="GtkBox">
-                    <property name="orientation">vertical</property>
-                    <property name="spacing">12</property>
-                    <property name="margin-start">10</property>
-                    <property name="margin-end">10</property>
-                    <property name="margin-top">10</property>
-                    <property name="margin-bottom">10</property>
-
+                    <property name="orientation">horizontal</property>
+                    <property name="hexpand">true</property>
+                    <property name="spacing">8</property>
+                      <property name="margin-start">10</property>
+                      <property name="margin-end">10</property>
+                      <property name="margin-top">10</property>
+                      <property name="margin-bottom">10</property>
                     <child>
-                      <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="hexpand">true</property>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Attraction</property>
-                            <property name="halign">start</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="LogScale" id="attraction"></object>
-                        </child>
+                      <object class="GtkLabel" id="ticker">
+                        <property name="halign">start</property>
                       </object>
                     </child>
-
                     <child>
-                      <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="hexpand">true</property>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Repulsion</property>
-                            <property name="halign">start</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="LogScale" id="repulsion"></object>
-                        </child>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="hexpand">true</property>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Center</property>
-                            <property name="halign">start</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="LogScale" id="center"></object>
-                        </child>
-                      </object>
-                    </child>
-
-                    <child>
-                      <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="hexpand">true</property>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Temperature</property>
-                            <property name="halign">start</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="LogScale" id="temperature"></object>
-                        </child>
+                      <object class="GtkLabel" id="energy">
+                        <property name="halign">end</property>
                       </object>
                     </child>
                   </object>

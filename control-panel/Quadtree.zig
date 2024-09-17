@@ -154,7 +154,6 @@ fn insertNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32),
     if (child != Body.NULL) {
         const center = self.tree.items[child].center;
         if (@reduce(.And, center == position)) {
-            std.log.info("self.tree.items[child].center == position", .{});
             self.tree.items[child].mass += mass;
             return;
         }
