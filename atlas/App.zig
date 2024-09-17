@@ -3,6 +3,7 @@ const mach = @import("mach");
 const core = mach.core;
 const gpu = mach.gpu;
 
+const builtin = @import("builtin");
 const build_options = @import("build_options");
 const nng = @import("nng");
 const sho = @import("shared-object");
@@ -21,7 +22,7 @@ const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 const MAX_ZOOM = 2400;
 const MIN_ZOOM = 0;
 
-const device_pixel_ratio = 2;
+const device_pixel_ratio = if (builtin.os.tag.isDarwin()) 2 else 1;
 
 pub const mach_core_options = core.ComptimeOptions{
     .use_wgpu = false,
