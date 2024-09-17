@@ -84,7 +84,6 @@ pub const ApplicationWindow = extern struct {
     });
 
     pub fn new(app: *gtk.Application) *ApplicationWindow {
-        // std.log.info("TEMPLATE_PATH: {s}", .{TEMPLATE_PATH});
         return gobject.ext.newInstance(ApplicationWindow, .{ .application = app });
     }
 
@@ -94,8 +93,6 @@ pub const ApplicationWindow = extern struct {
 
     fn init(win: *ApplicationWindow, _: *Class) callconv(.C) void {
         gtk.Widget.initTemplate(win.as(gtk.Widget));
-
-        // win.as(gtk.ApplicationWindow).setShowMenubar(1);
 
         win.private().child_process = null;
         win.private().engine_thread = null;
@@ -146,7 +143,7 @@ pub const ApplicationWindow = extern struct {
     fn finalize(win: *ApplicationWindow) callconv(.C) void {
         if (win.private().child_process) |child_process| {
             const status = child_process.kill() catch |e| @panic(@errorName(e));
-            std.log.info("terminated child process {any}", .{status});
+            std.log.warn("terminated child process {any}", .{status});
         }
 
         win.private().socket.close();
@@ -193,14 +190,15 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleSaveClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("Saving...", .{});
+        const writer = std.io.getStdOut().writer();
+        writer.print("Saving...\n", .{}) catch |err| @panic(@errorName(err));
         if (win.private().store) |store| store.save() catch |err| @panic(@errorName(err));
-        std.log.info("Saved.", .{});
+        writer.print("Saved.\n", .{}) catch |err| @panic(@errorName(err));
     }
 
     fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("Stopping...", .{});
-
+        const writer = std.io.getStdOut().writer();
+        writer.print("Stopping...\n", .{}) catch |err| @panic(@errorName(err));
 
         win.private().status = .Stopped;
         if (win.private().engine_thread) |engine_thread| {
@@ -220,7 +218,8 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("Starting...", .{});
+        const writer = std.io.getStdOut().writer();
+        writer.print("Starting...\n", .{}) catch |err| @panic(@errorName(err));
 
         win.private().open_button.as(gtk.Widget).setSensitive(0);
         win.private().save_button.as(gtk.Widget).setSensitive(0);
@@ -237,13 +236,16 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleViewClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("Opening atlas", .{});
+        const writer = std.io.getStdOut().writer();
+        writer.print("Opening atlas\n", .{}) catch |err| @panic(@errorName(err));
+
         win.private().child_process = spawn(c_allocator, &.{EXECUTABLE_PATH}, null);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
     }
 
     fn handleRandomizeClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("Randomizing...", .{});
+        const writer = std.io.getStdOut().writer();
+        writer.print("Randomizing...\n", .{}) catch |err| @panic(@errorName(err));
 
         const store = win.private().store orelse return;
         const engine = win.private().engine orelse return;
@@ -254,7 +256,7 @@ pub const ApplicationWindow = extern struct {
         const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
         std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
         win.private().socket.send(msg, .{}) catch |err| @panic(@errorName(err));
-        std.log.info("Randomized.", .{});
+        writer.print("Randomized.\n", .{}) catch |err| @panic(@errorName(err));
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -284,7 +286,8 @@ pub const ApplicationWindow = extern struct {
             try win.private().socket.send(msg, .{});
         }
 
-        std.log.info("Stopped.", .{});
+        const writer = std.io.getStdOut().writer();
+        try writer.print("Stopped.\n", .{});
 
         win.private().open_button.as(gtk.Widget).setSensitive(1);
         win.private().save_button.as(gtk.Widget).setSensitive(1);
@@ -296,7 +299,9 @@ pub const ApplicationWindow = extern struct {
 
     fn openFile(win: *ApplicationWindow, file: *gio.File) void {
         const path = file.getPath() orelse return;
-        std.log.info("Loading {s}", .{path});
+
+        const writer = std.io.getStdOut().writer();
+        writer.print("Loading {s}\n", .{path}) catch |err| @panic(@errorName(err));
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
@@ -360,7 +365,8 @@ fn handleOpenResponse(chooser: *gtk.FileChooserNative, _: c_int, win: *Applicati
 }
 
 fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopaque) callconv(.C) void {
-    std.log.info("Finished loading.", .{});
+    const writer = std.io.getStdOut().writer();
+    writer.print("Finished loading.\n", .{}) catch |err| @panic(@errorName(err));
 
     _ = res;
 
