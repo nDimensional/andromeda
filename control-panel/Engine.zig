@@ -252,7 +252,7 @@ fn updateNodeForces(self: *Engine, min: usize, max: usize, bucket: usize) void {
 
         f += center * self.params.getAttraction(p, .{ 0, 0 });
 
-        p += f * temperature;
+        p += temperature * f;
         self.store.positions[i] = p;
 
         min_x_pool[bucket] = @min(min_x_pool[bucket], p[0]);

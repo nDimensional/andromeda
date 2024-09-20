@@ -31,7 +31,7 @@ const temperature_scale = 1000;
 const initial_params = Params{
     .attraction = 0.0001,
     .repulsion = 100.0,
-    .center = 0.0001,
+    .center = 0.00002,
     .temperature = 0.1,
 };
 
@@ -41,6 +41,12 @@ pub const ApplicationWindow = extern struct {
     parent_instance: Parent,
 
     pub const Parent = gtk.ApplicationWindow;
+
+    const Metrics = struct {
+        count: u64,
+        energy: f32,
+        time: u64,
+    };
 
     const Private = struct {
         store: ?*Store,
@@ -72,6 +78,8 @@ pub const ApplicationWindow = extern struct {
         speed: *gtk.Label,
 
         params: Params,
+        metrics: Metrics,
+        metrics_timer: u32,
 
         var offset: c_int = 0;
     };
@@ -134,6 +142,11 @@ pub const ApplicationWindow = extern struct {
         win.private().view_button.as(gtk.Widget).setSensitive(0);
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
+
+        win.private().metrics_timer = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
+        win.private().metrics.count = 0;
+        win.private().metrics.energy = 0;
+        win.private().metrics.time = 0;
     }
 
     fn dispose(win: *ApplicationWindow) callconv(.C) void {
@@ -158,20 +171,16 @@ pub const ApplicationWindow = extern struct {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
     }
 
-    fn updateStatus(win: *ApplicationWindow, count: u64, energy: f32, time: u64) !void {
-        const t = win.private().timer.read() / 1_000_000;
-        if (t < 100) {
-            return;
-        }
+    fn updateMetrics(win: *ApplicationWindow) !void {
+        const metrics = win.private().metrics;
 
-        win.private().timer.reset();
-        const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}", .{count});
+        const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}", .{metrics.count});
         win.private().ticker.setMarkup(ticker_markup);
 
-        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}", .{energy});
+        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}", .{metrics.energy});
         win.private().energy.setMarkup(energy_markup);
 
-        const speed_markup = try std.fmt.bufPrintZ(&label_buffer, "Time: {d}ms", .{time});
+        const speed_markup = try std.fmt.bufPrintZ(&label_buffer, "Time: {d}ms", .{metrics.time});
         win.private().speed.setMarkup(speed_markup);
     }
 
@@ -210,16 +219,8 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const engine = win.private().engine orelse return;
-
-        const start = win.private().timer.read();
-        const energy = engine.tick() catch |err| @panic(@errorName(err));
-        const time = win.private().timer.read() - start;
-        win.updateStatus(engine.count, energy, time / 1_000_000) catch |err| @panic(@errorName(err));
-
-        const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
-        std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
-        win.private().socket.send(msg, .{}) catch |err| @panic(@errorName(err));
+        win.tick() catch |err| @panic(@errorName(err));
+        win.updateMetrics() catch |err| @panic(@errorName(err));
     }
 
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
@@ -281,16 +282,9 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn loop(win: *ApplicationWindow) !void {
-        const engine = win.private().engine orelse return;
+        // const engine = win.private().engine orelse return;
         while (win.private().status == .Started) {
-            const start = win.private().timer.read();
-            const energy = try engine.tick();
-            const time = win.private().timer.read() - start;
-            try win.updateStatus(engine.count, energy, time / 1_000_000);
-
-            const msg = try nng.Message.init(8);
-            std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
-            try win.private().socket.send(msg, .{});
+            try win.tick();
         }
 
         const writer = std.io.getStdOut().writer();
@@ -302,6 +296,23 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(1);
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
         win.private().randomize_button.as(gtk.Widget).setSensitive(1);
+    }
+
+    fn tick(win: *ApplicationWindow) !void {
+        const engine = win.private().engine orelse return;
+
+        const start = win.private().timer.read();
+        const energy = try engine.tick();
+        const time = win.private().timer.read() - start;
+        win.private().metrics = .{
+            .count = engine.count,
+            .energy = energy,
+            .time = time / 1_000_000,
+        };
+
+        const msg = try nng.Message.init(8);
+        std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
+        try win.private().socket.send(msg, .{});
     }
 
     fn openFile(win: *ApplicationWindow, file: *gio.File) void {
@@ -396,6 +407,12 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().view_button.as(gtk.Widget).setSensitive(1);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
     gtk.Stack.setVisibleChildName(win.private().stack, "status");
+}
+
+fn handleMetricsUpdate(user_data: ?*anyopaque) callconv(.C) c_int {
+    const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
+    win.updateMetrics() catch |err| @panic(@errorName(err));
+    return 1;
 }
 
 fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, env_map: ?*const std.process.EnvMap) ?*std.process.Child {
