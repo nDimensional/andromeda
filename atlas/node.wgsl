@@ -38,7 +38,7 @@ struct VSOutput {
 ) -> VSOutput {
     var vsOut: VSOutput;
 
-    let r = params.min_radius + z[i];
+    let r = (params.min_radius + z[i]) / params.scale_radius;
     let c = nodes[i];
     vsOut.vertex = grid_space_to_ndc(c + (v * r));
     vsOut.center = grid_space_to_clip_space(c) * params.pixel_ratio;

@@ -81,7 +81,7 @@ pub fn init(app: *App) !void {
         .height = @floatFromInt(size.height),
         .offset = .{ 0, 0 },
         .scale = 1,
-        .min_radius = 10,
+        .min_radius = 16,
         .scale_radius = 1,
         .pixel_ratio = device_pixel_ratio,
     };
@@ -161,6 +161,8 @@ pub fn update(app: *App) !bool {
                     const new_scale = getScale(zoom);
                     app.zoom = zoom;
                     app.params.scale = new_scale;
+                    // std.m
+                    app.params.scale_radius = std.math.sqrt(std.math.sqrt(new_scale));
 
                     const px = @as(f32, @floatCast(app.mouse.x)) - @as(f32, @floatFromInt(size.width)) / 2;
                     const py = @as(f32, @floatFromInt(size.height)) / 2 - @as(f32, @floatCast(app.mouse.y));
