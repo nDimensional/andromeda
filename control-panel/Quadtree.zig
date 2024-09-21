@@ -102,6 +102,7 @@ pub const Body = packed struct {
 
 area: Area,
 tree: std.ArrayList(Body),
+threshold: f32 = 0.5,
 
 pub fn init(allocator: std.mem.Allocator, area: Area) Quadtree {
     return .{ .tree = std.ArrayList(Body).init(allocator), .area = area };
@@ -166,6 +167,49 @@ fn insertNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32),
     }
 }
 
+pub fn remove(self: *Quadtree, position: @Vector(2, f32), mass: f32) !void {
+    _ = try self.removeNode(0, self.area, position, mass);
+    // if (result == true) {
+    //     @panic("internal error - remove root body");
+    // }
+}
+
+fn removeNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32), mass: f32) !bool {
+    if (body >= self.tree.items.len) {
+        @panic("index out of range");
+    }
+
+    if (area.s == 0) {
+        @panic("expected area.s > 0");
+    }
+
+    if (self.tree.items[body].isEmpty()) {
+        if (self.tree.items[body].mass < mass) {
+            @panic("internal error removing body");
+        }
+
+        return true;
+    }
+
+    const quadrant = area.locate(position);
+    const child = self.tree.items[body].getQuadrant(quadrant);
+    const remove_child = try self.removeNode(child, area.divide(quadrant), position, mass);
+    if (remove_child) {
+        self.tree.items[body].setQuadrant(quadrant, Body.NULL);
+    }
+
+    self.tree.items[body].update(position, -mass);
+    if (self.tree.items[body].isEmpty()) {
+        if (self.tree.items[body].mass != 0) {
+            @panic("internal error - expeted body mass to be 0");
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 pub fn getForce(self: Quadtree, params: *const Params, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
     if (self.tree.items.len == 0) {
         return .{ 0, 0 };
@@ -173,8 +217,6 @@ pub fn getForce(self: Quadtree, params: *const Params, p: @Vector(2, f32), mass:
         return self.getForceBody(params, 0, self.area.s, p, mass);
     }
 }
-
-const threshold = 0.5;
 
 fn getForceBody(self: Quadtree, params: *const Params, body: u32, s: f32, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
     if (body >= self.tree.items.len) {
@@ -190,7 +232,7 @@ fn getForceBody(self: Quadtree, params: *const Params, body: u32, s: f32, p: @Ve
     const norm = @reduce(.Add, delta * delta);
     const d = std.math.sqrt(norm);
 
-    if (s / d < threshold) {
+    if (s / d < self.threshold) {
         return params.getRepulsion(p, mass, node.center, node.mass);
     }
 
@@ -238,5 +280,41 @@ fn printBody(self: *Quadtree, log: std.fs.File.Writer, body: u32, depth: usize) 
         }
     } else {
         try log.print("idx #{d}\n", .{node.idx});
+    }
+}
+
+test "quadtree tests" {
+    const s: f32 = 256;
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    var prng = std.Random.Xoshiro256.init(0);
+    const random = prng.random();
+
+    var quadtree = Quadtree.init(allocator, .{ .s = s });
+    defer quadtree.deinit();
+
+    var bodies = std.ArrayList(Body).init(allocator);
+    defer bodies.deinit();
+
+    var total_mass: f32 = 0;
+
+    for (0..100) |_| {
+        const x = (random.float(f32) - 0.5) * s;
+        const y = (random.float(f32) - 0.5) * s;
+        const mass: f32 = @floatFromInt(1 + random.uintLessThan(u32, 256));
+
+        try quadtree.insert(.{ x, y }, mass);
+        try bodies.append(.{ .center = .{ x, y }, .mass = mass });
+
+        total_mass += mass;
+        try std.testing.expectEqual(quadtree.tree.items[0].mass, total_mass);
+    }
+
+    for (bodies.items) |body| {
+        try quadtree.remove(body.center, body.mass);
+        total_mass -= body.mass;
+        try std.testing.expectEqual(quadtree.tree.items[0].mass, total_mass);
     }
 }
