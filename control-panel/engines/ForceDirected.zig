@@ -1,9 +1,9 @@
 const std = @import("std");
 
-const Quadtree = @import("Quadtree.zig");
-const Store = @import("Store.zig");
+const Quadtree = @import("../Quadtree.zig");
+const Store = @import("../Store.zig");
 
-const Params = @import("Params.zig");
+const Params = @import("../Params.zig");
 
 const Engine = @This();
 
@@ -87,7 +87,7 @@ pub fn getBoundingSize(self: Engine) !f32 {
     return std.math.pow(f32, 2, @ceil(@log2(s)));
 }
 
-pub fn randomize(self: *Engine, s: f32) void {
+pub fn randomize(self: *Engine, s: f32) !void {
     var random = self.prng.random();
     for (0..self.store.node_count) |i| {
         const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.store.node_count));

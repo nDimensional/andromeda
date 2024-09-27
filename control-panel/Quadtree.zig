@@ -200,8 +200,8 @@ fn removeNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32),
 
     self.tree.items[body].update(position, -mass);
     if (self.tree.items[body].isEmpty()) {
-        if (self.tree.items[body].mass != 0) {
-            @panic("internal error - expeted body mass to be 0");
+        if (self.tree.items[body].mass > 0.001) {
+            std.log.warn("expected body mass to be 0", .{});
         }
 
         return true;

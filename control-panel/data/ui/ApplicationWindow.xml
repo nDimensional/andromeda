@@ -61,6 +61,29 @@
           </object>
         </child>
         <child>
+          <object class="GtkBox">
+            <property name="orientation">horizontal</property>
+            <property name="hexpand">true</property>
+            <property name="spacing">8</property>
+            <property name="margin-start">10</property>
+            <property name="margin-end">10</property>
+            <!-- <property name="margin-top">10</property> -->
+            <property name="margin-bottom">10</property>
+            <child>
+              <object class="GtkDropDown" id="engine_dropdown">
+                <property name="model">
+                  <object class="GtkStringList">
+                    <items>
+                      <item translatable="yes">Force Directed</item>
+                      <item translatable="yes">Simulated Annealing</item>
+                    </items>
+                  </object>
+                </property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
           <object class="GtkSeparator">
             <property name="orientation">horizontal</property>
           </object>

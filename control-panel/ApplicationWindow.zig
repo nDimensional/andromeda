@@ -5,23 +5,27 @@ const gio = @import("gio");
 const gtk = @import("gtk");
 const intl = @import("libintl");
 
-const nng = @import("nng");
-
 const build_options = @import("build_options");
 
 const c_allocator = std.heap.c_allocator;
 
 const Progress = @import("Progress.zig");
 const Store = @import("Store.zig");
-const Engine = @import("Engine.zig");
+const SimulatedAnnealing = @import("engines/SimulatedAnnealing.zig");
+const ForceDirected = @import("engines/ForceDirected.zig");
 const LogScale = @import("LogScale.zig").LogScale;
 const Params = @import("Params.zig");
+
+const Beacon = @import("Beacon.zig");
+
+const EngineTag = @import("engines/Engine.zig").EngineTag;
+const Engine = @import("engines/Engine.zig").Engine;
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 const EXECUTABLE_PATH = build_options.atlas_path;
 const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
-const Status = enum { Stopped, Started };
+const Status = enum { Stopped, Starting, Running, Stopping };
 
 const attraction_scale = 100000;
 const repulsion_scale = 1;
@@ -42,18 +46,13 @@ pub const ApplicationWindow = extern struct {
 
     pub const Parent = gtk.ApplicationWindow;
 
-    const Metrics = struct {
-        count: u64,
-        energy: f32,
-        time: u64,
-    };
+    const Metrics = struct { count: u64, energy: f32, time: u64 };
 
     const Private = struct {
         store: ?*Store,
-        engine: ?*Engine,
         child_process: ?*std.process.Child,
         engine_thread: ?std.Thread,
-        socket: nng.Socket.PUB,
+        beacon: Beacon,
         status: Status = .Stopped,
         timer: std.time.Timer,
 
@@ -72,6 +71,7 @@ pub const ApplicationWindow = extern struct {
         view_button: *gtk.Button,
         randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
+        engine_dropdown: *gtk.DropDown,
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
@@ -106,13 +106,10 @@ pub const ApplicationWindow = extern struct {
         win.private().child_process = null;
         win.private().engine_thread = null;
         win.private().store = null;
-        win.private().engine = null;
         win.private().status = .Stopped;
         win.private().timer = std.time.Timer.start() catch |err| @panic(@errorName(err));
 
-        const socket = nng.Socket.PUB.open() catch |err| @panic(@errorName(err));
-        socket.listen(SOCKET_URL) catch |err| @panic(@errorName(err));
-        win.private().socket = socket;
+        win.private().beacon = Beacon.init(SOCKET_URL) catch |err| @panic(@errorName(err));
 
         _ = gtk.Button.signals.clicked.connect(win.private().open_button, *ApplicationWindow, &handleOpenClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().save_button, *ApplicationWindow, &handleSaveClicked, win, .{});
@@ -141,6 +138,11 @@ pub const ApplicationWindow = extern struct {
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
 
+        win.private().attraction.as(gtk.Widget).setSensitive(0);
+        win.private().repulsion.as(gtk.Widget).setSensitive(0);
+        win.private().temperature.as(gtk.Widget).setSensitive(0);
+        win.private().center.as(gtk.Widget).setSensitive(0);
+
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
         win.private().metrics_timer = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
@@ -160,8 +162,7 @@ pub const ApplicationWindow = extern struct {
             std.log.warn("terminated child process {any}", .{status});
         }
 
-        win.private().socket.close();
-        if (win.private().engine) |engine| engine.deinit();
+        win.private().beacon.deinit();
         if (win.private().store) |store| store.deinit();
 
         Class.parent.as(gobject.Object.Class).finalize.?(win.as(gobject.Object));
@@ -213,13 +214,28 @@ pub const ApplicationWindow = extern struct {
         const writer = std.io.getStdOut().writer();
         writer.print("Stopping...\n", .{}) catch |err| @panic(@errorName(err));
 
-        win.private().status = .Stopped;
+        win.private().status = .Stopping;
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
         if (win.private().engine_thread) |engine_thread| engine_thread.detach();
     }
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        win.tick() catch |err| @panic(@errorName(err));
+        const store = win.private().store orelse return;
+        const params = &win.private().params;
+
+        const tag = switch (win.private().engine_dropdown.getSelected()) {
+            0 => EngineTag.ForceDirected,
+            1 => EngineTag.SimulatedAnnealing,
+            else => |i| {
+                std.log.warn("invalid engine index: {d}", .{i});
+                return;
+            },
+        };
+
+        const engine = Engine.init(c_allocator, store, params, tag) catch |err| @panic(@errorName(err));
+        defer engine.deinit();
+
+        win.tick(engine) catch |err| @panic(@errorName(err));
         win.updateMetrics() catch |err| @panic(@errorName(err));
     }
 
@@ -234,7 +250,7 @@ pub const ApplicationWindow = extern struct {
         win.private().stop_button.as(gtk.Widget).setSensitive(1);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
 
-        win.private().status = .Started;
+        win.private().status = .Starting;
         win.private().engine_thread = std.Thread.spawn(.{}, loop, .{win}) catch |err| {
             std.log.err("failed to spawn engine thread: {s}", .{@errorName(err)});
             return;
@@ -254,14 +270,11 @@ pub const ApplicationWindow = extern struct {
         writer.print("Randomizing...\n", .{}) catch |err| @panic(@errorName(err));
 
         const store = win.private().store orelse return;
-        const engine = win.private().engine orelse return;
 
         const s = std.math.sqrt(@as(f32, @floatFromInt(store.node_count)));
-        engine.randomize(s * 100);
+        store.randomize(s * 100);
 
-        const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
-        std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
-        win.private().socket.send(msg, .{}) catch |err| @panic(@errorName(err));
+        win.private().beacon.publish() catch |err| @panic(@errorName(err));
         writer.print("Randomized.\n", .{}) catch |err| @panic(@errorName(err));
     }
 
@@ -282,9 +295,28 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn loop(win: *ApplicationWindow) !void {
-        // const engine = win.private().engine orelse return;
-        while (win.private().status == .Started) {
-            try win.tick();
+        const store = win.private().store orelse return;
+        const params = &win.private().params;
+
+        const tag = switch (win.private().engine_dropdown.getSelected()) {
+            0 => EngineTag.ForceDirected,
+            1 => EngineTag.SimulatedAnnealing,
+            else => |i| {
+                std.log.warn("invalid engine index: {d}", .{i});
+                return;
+            },
+        };
+
+        const engine = Engine.init(c_allocator, store, params, tag) catch |err| @panic(@errorName(err));
+        defer engine.deinit();
+
+        win.private().status = .Running;
+        while (win.private().status == .Running) {
+            try win.tick(engine);
+        }
+
+        if (win.private().status != .Stopping) {
+            std.log.warn("unexpected state", .{});
         }
 
         const writer = std.io.getStdOut().writer();
@@ -298,21 +330,17 @@ pub const ApplicationWindow = extern struct {
         win.private().randomize_button.as(gtk.Widget).setSensitive(1);
     }
 
-    fn tick(win: *ApplicationWindow) !void {
-        const engine = win.private().engine orelse return;
-
+    fn tick(win: *ApplicationWindow, engine: Engine) !void {
         const start = win.private().timer.read();
         const energy = try engine.tick();
         const time = win.private().timer.read() - start;
         win.private().metrics = .{
-            .count = engine.count,
+            .count = engine.count(),
             .energy = energy,
             .time = time / 1_000_000,
         };
 
-        const msg = try nng.Message.init(8);
-        std.mem.writeInt(u64, msg.body()[0..8], engine.count, .big);
-        try win.private().socket.send(msg, .{});
+        try win.private().beacon.publish();
     }
 
     fn openFile(win: *ApplicationWindow, file: *gio.File) void {
@@ -368,6 +396,7 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
+            class.bindTemplateChildPrivate("engine_dropdown", .{});
         }
 
         fn bindTemplateChildPrivate(class: *Class, comptime name: [:0]const u8, comptime options: gtk.ext.BindTemplateChildOptions) void {
@@ -391,14 +420,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
-    const store = win.private().store orelse return;
-    const engine = Engine.init(c_allocator, store, &win.private().params) catch |err| {
-        std.log.err("failed to initialize engine: {s}", .{@errorName(err)});
-        return;
-    };
-
-    win.private().engine = engine;
-
     win.private().open_button.as(gtk.Widget).setSensitive(1);
     win.private().save_button.as(gtk.Widget).setSensitive(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
@@ -406,6 +427,12 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
+
+    win.private().attraction.as(gtk.Widget).setSensitive(1);
+    win.private().repulsion.as(gtk.Widget).setSensitive(1);
+    win.private().temperature.as(gtk.Widget).setSensitive(1);
+    win.private().center.as(gtk.Widget).setSensitive(1);
+
     gtk.Stack.setVisibleChildName(win.private().stack, "status");
 }
 
@@ -413,6 +440,11 @@ fn handleMetricsUpdate(user_data: ?*anyopaque) callconv(.C) c_int {
     const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
     win.updateMetrics() catch |err| @panic(@errorName(err));
     return 1;
+}
+
+fn handleEngineSelected(user_data: ?*anyopaque) callconv(.C) void {
+    const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
+    win.updateMetrics() catch |err| @panic(@errorName(err));
 }
 
 fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, env_map: ?*const std.process.EnvMap) ?*std.process.Child {

@@ -213,3 +213,24 @@ pub fn save(self: *Store) !void {
 
     try self.db.exec("COMMIT TRANSACTION", .{});
 }
+
+pub fn randomize(self: *Store, s: f32) void {
+    var random = self.prng.random();
+    for (0..self.node_count) |i| {
+        const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.node_count));
+
+        // var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
+        // x -= @floatFromInt(s / 2);
+        var x = s * random.float(f32);
+        x -= s / 2;
+        x += p;
+
+        // var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
+        // y -= @floatFromInt(s / 2);
+        var y = s * random.float(f32);
+        y -= s / 2;
+        y += p;
+
+        self.positions[i] = .{ x, y };
+    }
+}
