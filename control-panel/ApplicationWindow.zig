@@ -54,6 +54,7 @@ pub const ApplicationWindow = extern struct {
         engine_thread: ?std.Thread,
         beacon: Beacon,
         status: Status = .Stopped,
+        stdout: std.fs.File,
         timer: std.time.Timer,
 
         stack: *gtk.Stack,
@@ -107,6 +108,7 @@ pub const ApplicationWindow = extern struct {
         win.private().engine_thread = null;
         win.private().store = null;
         win.private().status = .Stopped;
+        win.private().stdout = std.io.getStdOut();
         win.private().timer = std.time.Timer.start() catch |err| @panic(@errorName(err));
 
         win.private().beacon = Beacon.init(SOCKET_URL) catch |err| @panic(@errorName(err));
@@ -137,6 +139,7 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
+        win.private().engine_dropdown.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
@@ -204,16 +207,13 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleSaveClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const writer = std.io.getStdOut().writer();
-        writer.print("Saving...\n", .{}) catch |err| @panic(@errorName(err));
+        win.log("Saving...", .{});
         if (win.private().store) |store| store.save() catch |err| @panic(@errorName(err));
-        writer.print("Saved.\n", .{}) catch |err| @panic(@errorName(err));
+        win.log("Saved.", .{});
     }
 
     fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const writer = std.io.getStdOut().writer();
-        writer.print("Stopping...\n", .{}) catch |err| @panic(@errorName(err));
-
+        win.log("Stopping...", .{});
         win.private().status = .Stopping;
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
         if (win.private().engine_thread) |engine_thread| engine_thread.detach();
@@ -240,8 +240,7 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const writer = std.io.getStdOut().writer();
-        writer.print("Starting...\n", .{}) catch |err| @panic(@errorName(err));
+        win.log("Starting...", .{});
 
         win.private().open_button.as(gtk.Widget).setSensitive(0);
         win.private().save_button.as(gtk.Widget).setSensitive(0);
@@ -249,6 +248,7 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(1);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
+        win.private().engine_dropdown.as(gtk.Widget).setSensitive(0);
 
         win.private().status = .Starting;
         win.private().engine_thread = std.Thread.spawn(.{}, loop, .{win}) catch |err| {
@@ -258,24 +258,21 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn handleViewClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const writer = std.io.getStdOut().writer();
-        writer.print("Opening atlas\n", .{}) catch |err| @panic(@errorName(err));
+        win.log("Opening atlas", .{});
 
         win.private().child_process = spawn(c_allocator, &.{EXECUTABLE_PATH}, null);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
     }
 
     fn handleRandomizeClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const writer = std.io.getStdOut().writer();
-        writer.print("Randomizing...\n", .{}) catch |err| @panic(@errorName(err));
-
+        win.log("Randomizing...", .{});
         const store = win.private().store orelse return;
 
         const s = std.math.sqrt(@as(f32, @floatFromInt(store.node_count)));
         store.randomize(s * 100);
 
         win.private().beacon.publish() catch |err| @panic(@errorName(err));
-        writer.print("Randomized.\n", .{}) catch |err| @panic(@errorName(err));
+        win.log("Randomized.", .{});
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -319,15 +316,9 @@ pub const ApplicationWindow = extern struct {
             std.log.warn("unexpected state", .{});
         }
 
-        const writer = std.io.getStdOut().writer();
-        try writer.print("Stopped.\n", .{});
+        win.log("Stopped.", .{});
 
-        win.private().open_button.as(gtk.Widget).setSensitive(1);
-        win.private().save_button.as(gtk.Widget).setSensitive(1);
-        win.private().tick_button.as(gtk.Widget).setSensitive(1);
-        win.private().start_button.as(gtk.Widget).setSensitive(1);
-        win.private().stop_button.as(gtk.Widget).setSensitive(0);
-        win.private().randomize_button.as(gtk.Widget).setSensitive(1);
+        _ = glib.idleAdd(&handleLoopStop, win);
     }
 
     fn tick(win: *ApplicationWindow, engine: Engine) !void {
@@ -346,8 +337,7 @@ pub const ApplicationWindow = extern struct {
     fn openFile(win: *ApplicationWindow, file: *gio.File) void {
         const path = file.getPath() orelse return;
 
-        const writer = std.io.getStdOut().writer();
-        writer.print("Loading {s}\n", .{path}) catch |err| @panic(@errorName(err));
+        win.log("Loading {s}", .{path});
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
@@ -359,6 +349,12 @@ pub const ApplicationWindow = extern struct {
         win.private().open_button.as(gtk.Widget).setSensitive(0);
         win.private().store = store;
         store.load(.{ .callback = &loadResultCallback, .callback_data = win });
+    }
+
+    fn log(win: *ApplicationWindow, comptime format: []const u8, args: anytype) void {
+        const writer = win.private().stdout.writer();
+        writer.print(format, args) catch |err| @panic(@errorName(err));
+        writer.writeByte('\n') catch |err| @panic(@errorName(err));
     }
 
     pub const Class = extern struct {
@@ -413,12 +409,11 @@ fn handleOpenResponse(chooser: *gtk.FileChooserNative, _: c_int, win: *Applicati
 }
 
 fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopaque) callconv(.C) void {
-    const writer = std.io.getStdOut().writer();
-    writer.print("Finished loading.\n", .{}) catch |err| @panic(@errorName(err));
-
     _ = res;
 
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
+
+    win.log("Finished loading.", .{});
 
     win.private().open_button.as(gtk.Widget).setSensitive(1);
     win.private().save_button.as(gtk.Widget).setSensitive(1);
@@ -427,6 +422,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
+    win.private().engine_dropdown.as(gtk.Widget).setSensitive(1);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
@@ -436,15 +432,31 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     gtk.Stack.setVisibleChildName(win.private().stack, "status");
 }
 
+fn handleEngineSelected(user_data: ?*anyopaque) callconv(.C) void {
+    const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
+    win.updateMetrics() catch |err| @panic(@errorName(err));
+}
+
 fn handleMetricsUpdate(user_data: ?*anyopaque) callconv(.C) c_int {
     const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
     win.updateMetrics() catch |err| @panic(@errorName(err));
     return 1;
 }
 
-fn handleEngineSelected(user_data: ?*anyopaque) callconv(.C) void {
+fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
-    win.updateMetrics() catch |err| @panic(@errorName(err));
+
+    win.private().status = .Stopped;
+
+    win.private().open_button.as(gtk.Widget).setSensitive(1);
+    win.private().save_button.as(gtk.Widget).setSensitive(1);
+    win.private().tick_button.as(gtk.Widget).setSensitive(1);
+    win.private().start_button.as(gtk.Widget).setSensitive(1);
+    win.private().stop_button.as(gtk.Widget).setSensitive(0);
+    win.private().randomize_button.as(gtk.Widget).setSensitive(1);
+    win.private().engine_dropdown.as(gtk.Widget).setSensitive(1);
+
+    return 0;
 }
 
 fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, env_map: ?*const std.process.EnvMap) ?*std.process.Child {
