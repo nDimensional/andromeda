@@ -108,31 +108,6 @@ pub fn getBoundingSize(self: Engine) !f32 {
     return std.math.pow(f32, 2, @ceil(@log2(s)));
 }
 
-pub fn randomize(self: *Engine, s: f32) !void {
-    // var random = self.position_prng.random();
-    for (0..self.store.node_count) |i| {
-        const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.store.node_count));
-
-        // var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // x -= @floatFromInt(s / 2);
-        var x = s * self.random.float(f32);
-        x -= s / 2;
-        x += p;
-
-        // var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // y -= @floatFromInt(s / 2);
-        var y = s * self.random.float(f32);
-        y -= s / 2;
-        y += p;
-
-        self.store.positions[i] = .{ x, y };
-    }
-
-    self.count += 1;
-
-    try self.rebuildTrees();
-}
-
 pub fn tick(self: *Engine) !f32 {
     std.log.info("tick {d}", .{self.count});
 
@@ -145,6 +120,20 @@ pub fn tick(self: *Engine) !f32 {
     for (0..self.store.node_count) |i| {
         sum += try self.updateNode(i);
     }
+
+    // {
+    //     const node_count = self.store.node_count;
+    //     var pool: [node_pool_size]std.Thread = undefined;
+    //     for (0..node_pool_size) |i| {
+    //         const min = i * node_count / node_pool_size;
+    //         const max = (i + 1) * node_count / node_pool_size;
+    //         pool[i] = try std.Thread.spawn(.{}, updateNodeRange, .{ self, min, max, i });
+    //     }
+
+    //     for (0..node_pool_size) |i| pool[i].join();
+
+    //     std.log.info("updated node forces in {d}ms", .{self.timer.lap() / 1_000_000});
+    // }
 
     std.log.info("updated all nodes in {d}ms", .{self.timer.read() / 1_000_000});
 
@@ -197,11 +186,13 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     }
 }
 
-fn updateNodeRange(self: *Engine, min: usize, max: usize) !void {
+fn updateNodeRange(self: *Engine, min: usize, max: usize, bucket: usize) !void {
     var sum: f32 = 0;
     for (min..max) |i| {
         sum += try self.updateNode(i);
     }
+
+    energy_pool[bucket] = sum;
 }
 
 fn updateNode(self: *Engine, i: usize) !f32 {
@@ -223,14 +214,6 @@ fn updateNode(self: *Engine, i: usize) !f32 {
     var f_a = Params.Force{ 0, 0 };
     var f_b = Params.Force{ 0, 0 };
 
-    // for (0..self.store.node_count) |j| {
-    //     if (i == j) continue;
-    //     const p_j = self.store.positions[j];
-    //     const mass_j = self.params.getMass(self.store.z[j]);
-    //     f_a += self.params.getRepulsion(a, mass_i, p_j, mass_j);
-    //     f_b += self.params.getRepulsion(b, mass_i, p_j, mass_j);
-    // }
-
     for (self.quads) |tree| {
         f_a += tree.getForce(self.params, a, mass_i);
         f_b += tree.getForce(self.params, b, mass_i);
@@ -250,24 +233,6 @@ fn updateNode(self: *Engine, i: usize) !f32 {
         f_a += self.params.getAttraction(p_s, a);
         f_b += self.params.getAttraction(p_s, b);
     }
-
-    // try self.store.select_edges_by_source.bind(.{ .source = idx });
-    // defer self.store.select_edges_by_source.reset();
-
-    // while (try self.store.select_edges_by_source.step()) |e| {
-    //     const p_t = self.store.positions[e.target - 1];
-    //     f_a += self.params.getAttraction(a, p_t);
-    //     f_b += self.params.getAttraction(b, p_t);
-    // }
-
-    // try self.store.select_edges_by_target.bind(.{ .target = idx });
-    // defer self.store.select_edges_by_target.reset();
-
-    // while (try self.store.select_edges_by_target.step()) |e| {
-    //     const p_s = self.store.positions[e.source - 1];
-    //     f_a += self.params.getAttraction(p_s, a);
-    //     f_b += self.params.getAttraction(p_s, b);
-    // }
 
     const energy_a = @reduce(.Add, f_a * f_a);
     const energy_b = @reduce(.Add, f_b * f_b);

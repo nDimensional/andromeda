@@ -7,8 +7,10 @@ const Params = @import("../Params.zig");
 
 const Engine = @This();
 
-const node_pool_size = 15;
-const edge_pool_size = 15;
+// const node_pool_size = 15;
+// const edge_pool_size = 15;
+const node_pool_size = 1;
+const edge_pool_size = 1;
 
 var energy_pool: [node_pool_size]f32 = undefined;
 var min_x_pool: [node_pool_size]f32 = undefined;
@@ -17,7 +19,6 @@ var min_y_pool: [node_pool_size]f32 = undefined;
 var max_y_pool: [node_pool_size]f32 = undefined;
 
 allocator: std.mem.Allocator,
-prng: std.rand.Xoshiro256,
 timer: std.time.Timer,
 store: *const Store,
 quads: [4]Quadtree,
@@ -37,7 +38,6 @@ pub fn init(allocator: std.mem.Allocator, store: *const Store, params: *const Pa
 
     const self = try allocator.create(Engine);
     self.allocator = allocator;
-    self.prng = std.rand.Xoshiro256.init(0);
     self.store = store;
     self.params = params;
     self.timer = try std.time.Timer.start();
@@ -85,29 +85,6 @@ pub fn deinit(self: *const Engine) void {
 pub fn getBoundingSize(self: Engine) !f32 {
     const s = @max(@abs(self.min_x), @abs(self.max_x), @abs(self.min_y), @abs(self.max_y)) * 2;
     return std.math.pow(f32, 2, @ceil(@log2(s)));
-}
-
-pub fn randomize(self: *Engine, s: f32) !void {
-    var random = self.prng.random();
-    for (0..self.store.node_count) |i| {
-        const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.store.node_count));
-
-        // var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // x -= @floatFromInt(s / 2);
-        var x = s * random.float(f32);
-        x -= s / 2;
-        x += p;
-
-        // var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // y -= @floatFromInt(s / 2);
-        var y = s * random.float(f32);
-        y -= s / 2;
-        y += p;
-
-        self.store.positions[i] = .{ x, y };
-    }
-
-    self.count += 1;
 }
 
 pub fn tick(self: *Engine) !f32 {

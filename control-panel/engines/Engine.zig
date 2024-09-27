@@ -30,13 +30,6 @@ pub const Engine = union(EngineTag) {
         }
     }
 
-    pub fn randomize(self: Engine, s: f32) !void {
-        switch (self) {
-            .ForceDirected => |engine| try engine.randomize(s),
-            .SimulatedAnnealing => |engine| try engine.randomize(s),
-        }
-    }
-
     pub fn tick(self: Engine) !f32 {
         return switch (self) {
             .ForceDirected => |engine| try engine.tick(),
