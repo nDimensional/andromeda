@@ -160,6 +160,10 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn finalize(win: *ApplicationWindow) callconv(.C) void {
+        const ctx = glib.MainContext.default();
+        const source = ctx.findSourceById(win.private().metrics_timer);
+        source.destroy();
+
         if (win.private().child_process) |child_process| {
             const status = child_process.kill() catch |e| @panic(@errorName(e));
             std.log.warn("terminated child process {any}", .{status});
