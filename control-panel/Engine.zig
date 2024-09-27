@@ -114,6 +114,8 @@ pub fn tick(self: *Engine) !f32 {
     std.log.info("tick {d}", .{self.count});
     self.timer.reset();
 
+    try self.rebuildTrees();
+
     {
         const edge_count = self.store.edge_count;
         var pool: [edge_pool_size]std.Thread = undefined;
@@ -136,7 +138,7 @@ pub fn tick(self: *Engine) !f32 {
         for (0..4) |i| {
             const tree = &self.quads[i];
             tree.reset(area.divide(@enumFromInt(i)));
-            pool[i] = try std.Thread.spawn(.{}, rebuildQuad, .{ self, tree });
+            pool[i] = try std.Thread.spawn(.{}, rebuildTree, .{ self, tree });
         }
 
         for (0..4) |i| pool[i].join();
@@ -163,32 +165,6 @@ pub fn tick(self: *Engine) !f32 {
     self.min_y = 0;
     self.max_y = 0;
 
-    // const temperature: Params.Force = @splat(self.params.temperature);
-    // const center: Params.Force = @splat(self.params.center);
-
-    // var sum: f32 = 0;
-    // for (0..self.store.node_count) |i| {
-    //     var f = self.node_forces[i];
-    //     inline for (self.edge_forces) |edge_forces| f += edge_forces[i];
-
-    //     f += center * self.params.getAttraction(self.store.positions[i], .{ 0, 0 });
-
-    //     sum += std.math.sqrt(@reduce(.Add, f * f));
-
-    //     f *= temperature;
-
-    //     const p = self.store.positions[i] + f;
-    //     self.store.positions[i] = p;
-
-    //     self.min_x = @min(self.min_x, p[0]);
-    //     self.max_x = @max(self.max_x, p[0]);
-    //     self.min_y = @min(self.min_y, p[1]);
-    //     self.max_y = @max(self.max_y, p[1]);
-
-    //     self.node_forces[i] = .{ 0, 0 };
-    //     inline for (self.edge_forces) |edge_forces| edge_forces[i] = .{ 0, 0 };
-    // }
-
     for (min_x_pool) |x| self.min_x = @min(self.min_x, x);
     for (max_x_pool) |x| self.max_x = @max(self.max_x, x);
     for (min_y_pool) |y| self.min_y = @min(self.min_y, y);
@@ -205,6 +181,33 @@ pub fn tick(self: *Engine) !f32 {
     std.log.info("energy: {d}", .{energy});
 
     return energy;
+}
+
+fn rebuildTrees(self: *Engine) !void {
+    const s = try self.getBoundingSize();
+    const area = Quadtree.Area{ .s = s };
+
+    var pool: [4]std.Thread = undefined;
+    for (0..4) |i| {
+        const tree = &self.quads[i];
+        tree.reset(area.divide(@enumFromInt(i)));
+        pool[i] = try std.Thread.spawn(.{}, rebuildTree, .{ self, tree });
+    }
+
+    for (0..4) |i| pool[i].join();
+
+    std.log.info("rebuilt quadtree in {d}ms", .{self.timer.lap() / 1_000_000});
+}
+
+fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
+    var i: u32 = 0;
+    while (i < self.store.node_count) : (i += 1) {
+        const p = self.store.positions[i];
+        if (tree.area.contains(p)) {
+            const mass = self.params.getMass(self.store.z[i]);
+            try tree.insert(p, mass);
+        }
+    }
 }
 
 fn updateEdgeForces(self: *Engine, min: usize, max: usize, force: []Params.Force) void {
@@ -264,21 +267,6 @@ fn updateNodeForces(self: *Engine, min: usize, max: usize, bucket: usize) void {
     }
 
     energy_pool[bucket] = sum;
-}
-
-pub fn rebuildQuad(self: *Engine, tree: *Quadtree) !void {
-    // var timer = try std.time.Timer.start();
-
-    var i: u32 = 0;
-    while (i < self.store.node_count) : (i += 1) {
-        const p = self.store.positions[i];
-        if (tree.area.contains(p)) {
-            const mass = self.params.getMass(self.store.z[i]);
-            try tree.insert(p, mass);
-        }
-    }
-
-    // std.log.info("rebuildQuad in {d}ms ({d} nodes)", .{ timer.read() / 1_000_000, tree.tree.items.len });
 }
 
 fn getNodeForce(self: *Engine, p: Params.Point, mass: f32) Params.Force {
