@@ -10,6 +10,11 @@ const sqlite = @import("sqlite");
 const Progress = @import("Progress.zig");
 
 pub const UpdateParams = struct { x: f32, y: f32, idx: u32 };
+pub const SelectEdgesBySourceParams = struct { source: u32 };
+pub const SelectEdgesBySourceResult = struct { idx: u32, target: u32 };
+pub const SelectEdgesByTargetParams = struct { target: u32 };
+pub const SelectEdgesByTargetResult = struct { idx: u32, source: u32 };
+
 pub const Count = struct { count: usize };
 
 const Store = @This();
@@ -24,6 +29,9 @@ prng: std.rand.Xoshiro256 = std.rand.Xoshiro256.init(0),
 db: sqlite.Database,
 
 update: sqlite.Statement(UpdateParams, void),
+
+select_edges_by_source: sqlite.Statement(SelectEdgesBySourceParams, SelectEdgesBySourceResult),
+select_edges_by_target: sqlite.Statement(SelectEdgesByTargetParams, SelectEdgesByTargetResult),
 
 node_count: usize = 0,
 edge_count: usize = 0,
@@ -43,12 +51,20 @@ pub const Options = struct {
 pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     const store = try allocator.create(Store);
     store.allocator = allocator;
-    store.progress = Progress { .progress_bar = options.progress_bar };
+    store.progress = Progress{ .progress_bar = options.progress_bar };
 
     store.db = try sqlite.Database.open(.{ .path = options.path, .create = false });
 
     store.update = try store.db.prepare(UpdateParams, void,
         \\ UPDATE nodes SET x = :x, y = :y WHERE idx = :idx
+    );
+
+    store.select_edges_by_source = try store.db.prepare(SelectEdgesBySourceParams, SelectEdgesBySourceResult,
+        \\ SELECT idx, target FROM edges WHERE source = :source
+    );
+
+    store.select_edges_by_target = try store.db.prepare(SelectEdgesByTargetParams, SelectEdgesByTargetResult,
+        \\ SELECT idx, source FROM edges WHERE target = :target
     );
 
     {
@@ -85,6 +101,8 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
 
 pub fn deinit(self: *const Store) void {
     self.update.finalize();
+    self.select_edges_by_source.finalize();
+    self.select_edges_by_target.finalize();
     self.db.close();
 
     self.allocator.free(self.source);
