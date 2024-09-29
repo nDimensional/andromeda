@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Store = @import("../Store.zig");
+const Graph = @import("../Graph.zig");
 const Params = @import("../Params.zig");
 const SimulatedAnnealing = @import("SimulatedAnnealing.zig");
 const ForceDirected = @import("ForceDirected.zig");
@@ -10,14 +10,14 @@ pub const Engine = union(EngineTag) {
     ForceDirected: *ForceDirected,
     SimulatedAnnealing: *SimulatedAnnealing,
 
-    pub fn init(allocator: std.mem.Allocator, store: *Store, params: *const Params, tag: EngineTag) !Engine {
+    pub fn init(allocator: std.mem.Allocator, graph: *Graph, params: *const Params, tag: EngineTag) !Engine {
         switch (tag) {
             .ForceDirected => {
-                const engine = try ForceDirected.init(allocator, store, params);
+                const engine = try ForceDirected.init(allocator, graph, params);
                 return .{ .ForceDirected = engine };
             },
             .SimulatedAnnealing => {
-                const engine = try SimulatedAnnealing.init(allocator, store, params);
+                const engine = try SimulatedAnnealing.init(allocator, graph, params);
                 return .{ .SimulatedAnnealing = engine };
             },
         }

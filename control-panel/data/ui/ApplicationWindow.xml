@@ -22,33 +22,11 @@
               </object>
             </child>
             <child>
-              <object class="GtkButton" id="save_button">
-                <property name="icon-name">document-save-symbolic</property>
-                <property name="tooltip-text">Save</property>
-              </object>
+              <object class="GtkDropDown" id="filter_dropdown" />
             </child>
             <child>
-              <object class="GtkButton" id="stop_button">
-                <property name="icon-name">media-playback-stop-symbolic</property>
-                <property name="tooltip-text">Stop</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="start_button">
-                <property name="icon-name">media-playback-start-symbolic</property>
-                <property name="tooltip-text">Start</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="tick_button">
-                <property name="icon-name">go-next-symbolic</property>
-                <property name="tooltip-text">Tick</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="view_button">
-                <property name="icon-name">folder-pictures-symbolic</property>
-                <property name="tooltip-text">View</property>
+              <object class="GtkButton" id="load_button">
+                <property name="label">Load</property>
               </object>
             </child>
             <child>
@@ -79,6 +57,36 @@
                     </items>
                   </object>
                 </property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="save_button">
+                <property name="icon-name">document-save-symbolic</property>
+                <property name="tooltip-text">Save</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="stop_button">
+                <property name="icon-name">media-playback-stop-symbolic</property>
+                <property name="tooltip-text">Stop</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="start_button">
+                <property name="icon-name">media-playback-start-symbolic</property>
+                <property name="tooltip-text">Start</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="tick_button">
+                <property name="icon-name">go-next-symbolic</property>
+                <property name="tooltip-text">Tick</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="view_button">
+                <property name="icon-name">folder-pictures-symbolic</property>
+                <property name="tooltip-text">View</property>
               </object>
             </child>
           </object>

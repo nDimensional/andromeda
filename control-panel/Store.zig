@@ -15,33 +15,33 @@ pub const SelectEdgesBySourceResult = struct { idx: u32, target: u32 };
 pub const SelectEdgesByTargetParams = struct { target: u32 };
 pub const SelectEdgesByTargetResult = struct { idx: u32, source: u32 };
 
-pub const Count = struct { count: usize };
+pub const SelectNodesParams = struct {};
+pub const SelectNodesResult = struct { idx: u32, incoming_degree: u32, x: f32, y: f32 };
+pub const SelectEdgesParams = struct {};
+pub const SelectEdgesResult = struct { source: u32, target: u32 };
+
+pub const CountParams = struct {};
+pub const CountResult = struct { count: usize };
+
+pub const CountEdgesInRangeParams = struct { min_source: u32, max_source: u32, min_target: u32, max_target: u32 };
+pub const CountEdgesInRangeResult = struct { count: usize };
 
 const Store = @This();
-const SHM_NAME = "ANDROMEDA";
-
-const node_pool_size = 16;
-const edge_pool_size = 16;
 
 allocator: std.mem.Allocator,
-progress: Progress,
-prng: std.rand.Xoshiro256 = std.rand.Xoshiro256.init(0),
 db: sqlite.Database,
 
-update: sqlite.Statement(UpdateParams, void),
-
+count_nodes: sqlite.Statement(CountParams, CountResult),
+count_edges: sqlite.Statement(CountParams, CountResult),
+select_nodes: sqlite.Statement(SelectNodesParams, SelectNodesResult),
+select_edges: sqlite.Statement(SelectEdgesParams, SelectEdgesResult),
 select_edges_by_source: sqlite.Statement(SelectEdgesBySourceParams, SelectEdgesBySourceResult),
 select_edges_by_target: sqlite.Statement(SelectEdgesByTargetParams, SelectEdgesByTargetResult),
+count_edges_in_range: sqlite.Statement(CountEdgesInRangeParams, CountEdgesInRangeResult),
+update: sqlite.Statement(UpdateParams, void),
 
-node_count: usize = 0,
-edge_count: usize = 0,
-
-source: []u32 = undefined,
-target: []u32 = undefined,
-z: []f32 = undefined,
-
-positions: []@Vector(2, f32) = undefined,
-writer: sho.Writer(SHM_NAME) = undefined,
+// node_count: usize = 0,
+// edge_count: usize = 0,
 
 pub const Options = struct {
     path: ?[*:0]const u8 = null,
@@ -51,12 +51,22 @@ pub const Options = struct {
 pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     const store = try allocator.create(Store);
     store.allocator = allocator;
-    store.progress = Progress{ .progress_bar = options.progress_bar };
-
     store.db = try sqlite.Database.open(.{ .path = options.path, .create = false });
 
-    store.update = try store.db.prepare(UpdateParams, void,
-        \\ UPDATE nodes SET x = :x, y = :y WHERE idx = :idx
+    store.count_edges = try store.db.prepare(CountParams, CountResult,
+        \\ SELECT count(*) as count FROM edges
+    );
+
+    store.count_nodes = try store.db.prepare(CountParams, CountResult,
+        \\ SELECT count(*) as count FROM nodes
+    );
+
+    store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
+        \\ SELECT idx, incoming_degree, x, y FROM nodes ORDER BY idx ASC
+    );
+
+    store.select_edges = try store.db.prepare(SelectEdgesParams, SelectEdgesResult,
+        \\ SELECT source, target FROM edges
     );
 
     store.select_edges_by_source = try store.db.prepare(SelectEdgesBySourceParams, SelectEdgesBySourceResult,
@@ -67,170 +77,55 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
         \\ SELECT idx, source FROM edges WHERE target = :target
     );
 
-    {
-        const count_edges = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM edges");
-        defer count_edges.finalize();
+    store.count_edges_in_range = try store.db.prepare(CountEdgesInRangeParams, CountEdgesInRangeResult,
+        \\ SELECT count(*) as count FROM edges
+        \\   WHERE :min_target <= target
+        \\     AND target <= :max_target
+        \\     AND :min_source <= source
+        \\     AND source <= :max_source
+    );
 
-        try count_edges.bind(.{});
-        const result = try count_edges.step() orelse return error.NoResults;
-        store.edge_count = result.count;
-    }
-
-    store.source = try allocator.alloc(u32, store.edge_count);
-    store.target = try allocator.alloc(u32, store.edge_count);
-
-    {
-        const count_nodes = try store.db.prepare(struct {}, Count, "SELECT count(*) as count FROM nodes");
-        defer count_nodes.finalize();
-
-        try count_nodes.bind(.{});
-        const result = try count_nodes.step() orelse return error.NoResults;
-        store.node_count = result.count;
-    }
-
-    const size = @sizeOf(@Vector(2, f32)) * store.node_count;
-    store.writer = try sho.Writer(SHM_NAME).init(size);
-
-    const positions_ptr: [*]@Vector(2, f32) = @alignCast(@ptrCast(store.writer.data.ptr));
-    store.positions = positions_ptr[0..store.node_count];
-
-    store.z = try allocator.alloc(f32, store.node_count);
+    store.update = try store.db.prepare(UpdateParams, void,
+        \\ UPDATE nodes SET x = :x, y = :y WHERE idx = :idx
+    );
 
     return store;
 }
 
 pub fn deinit(self: *const Store) void {
-    self.update.finalize();
+    self.count_nodes.finalize();
+    self.count_edges.finalize();
+    self.select_nodes.finalize();
+    self.select_edges.finalize();
     self.select_edges_by_source.finalize();
     self.select_edges_by_target.finalize();
+    self.count_edges_in_range.finalize();
+    self.update.finalize();
+
     self.db.close();
-
-    self.allocator.free(self.source);
-    self.allocator.free(self.target);
-    self.allocator.free(self.z);
-
-    self.writer.deinit();
-
     self.allocator.destroy(self);
 }
 
-pub const LoadOptions = struct {
-    callback: ?*const fn (_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopaque) callconv(.C) void = null,
-    callback_data: ?*anyopaque = null,
-};
+pub fn countNodes(self: *const Store) !usize {
+    try self.count_nodes.bind(.{});
+    defer self.count_nodes.reset();
 
-pub fn load(self: *Store, options: LoadOptions) void {
-    const task = gio.Task.new(null, null, options.callback, options.callback_data);
-    defer task.unref();
-
-    task.setTaskData(self, null);
-    task.runInThread(&loadTask);
+    const result = try self.count_nodes.step() orelse return error.NoResults;
+    return result.count;
 }
 
-fn loadTask(task: *gio.Task, _: ?*gobject.Object, task_data: ?*anyopaque, cancellable: ?*gio.Cancellable) callconv(.C) void {
-    std.log.info("loadTask", .{});
+pub fn countEdges(self: *const Store) !usize {
+    try self.count_edges.bind(.{});
+    defer self.count_edges.reset();
 
-    const self: *Store = @alignCast(@ptrCast(task_data));
-
-    self.loadNodes(cancellable) catch |err| @panic(@errorName(err));
-    self.loadEdges(cancellable) catch |err| @panic(@errorName(err));
-
-    task.returnPointer(null, null);
+    const result = try self.count_edges.step() orelse return error.NoResults;
+    return result.count;
 }
 
-const batch_size = 1024;
+pub fn countEdgesInRange(self: *const Store, params: CountEdgesInRangeParams) !usize {
+    try self.count_edges_in_range.bind(params);
+    defer self.count_edges_in_range.reset();
 
-const LOADING_NODES = "Loading nodes";
-
-fn loadNodes(self: *Store, cancellable: ?*gio.Cancellable) !void {
-    _ = cancellable;
-
-    std.log.info("loading nodes...", .{});
-    self.progress.setText(LOADING_NODES);
-
-    const total: f64 = @floatFromInt(self.node_count);
-
-    const Node = struct { idx: u32, incoming_degree: u32, x: f32, y: f32 };
-    const select_nodes = try self.db.prepare(struct {}, Node,
-        \\ SELECT idx, incoming_degree, x, y FROM nodes
-    );
-
-    defer select_nodes.finalize();
-
-    try select_nodes.bind(.{});
-    defer select_nodes.reset();
-
-    var j: usize = 0;
-    while (try select_nodes.step()) |node| : (j += 1) {
-        const i = node.idx - 1;
-        self.positions[i] = .{ node.x, node.y };
-        self.z[i] = @floatFromInt(node.incoming_degree);
-
-        if (j % batch_size == 0) {
-            const value = @as(f64, @floatFromInt(j)) / total;
-            self.progress.setValue(value);
-        }
-    }
-}
-
-const LOADING_EDGES = "Loading edges";
-
-fn loadEdges(self: *Store, cancellable: ?*gio.Cancellable) !void {
-    _ = cancellable;
-
-    std.log.info("loading edges...", .{});
-    self.progress.setText(LOADING_EDGES);
-
-    const total: f64 = @floatFromInt(self.edge_count);
-
-    const Edge = struct { source: u32, target: u32 };
-    const select_edges = try self.db.prepare(struct {}, Edge, "SELECT source, target FROM edges");
-    defer select_edges.finalize();
-
-    try select_edges.bind(.{});
-    defer select_edges.reset();
-
-    var i: usize = 0;
-    while (try select_edges.step()) |edge| : (i += 1) {
-        self.source[i] = edge.source;
-        self.target[i] = edge.target;
-
-        if (i % batch_size == 0) {
-            const value = @as(f64, @floatFromInt(i)) / total;
-            self.progress.setValue(value);
-        }
-    }
-}
-
-pub fn save(self: *Store) !void {
-    try self.db.exec("BEGIN TRANSACTION", .{});
-
-    for (0..self.node_count) |i| {
-        const idx: u32 = @intCast(i + 1);
-        const p = self.positions[i];
-        try self.update.exec(.{ .x = p[0], .y = p[1], .idx = idx });
-    }
-
-    try self.db.exec("COMMIT TRANSACTION", .{});
-}
-
-pub fn randomize(self: *Store, s: f32) void {
-    var random = self.prng.random();
-    for (0..self.node_count) |i| {
-        const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.node_count));
-
-        // var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // x -= @floatFromInt(s / 2);
-        var x = s * random.float(f32);
-        x -= s / 2;
-        x += p;
-
-        // var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // y -= @floatFromInt(s / 2);
-        var y = s * random.float(f32);
-        y -= s / 2;
-        y += p;
-
-        self.positions[i] = .{ x, y };
-    }
+    const result = try self.count_edges_in_range.step() orelse return error.NoResults;
+    return result.count;
 }

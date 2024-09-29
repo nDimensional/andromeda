@@ -94,6 +94,7 @@ pub fn init(app: *App) !void {
 }
 
 pub fn deinit(app: *App) void {
+    std.log.info("Atlas/App.zig: deinit()", .{});
     app.socket.close();
     app.reader.deinit();
 
@@ -110,7 +111,10 @@ pub fn update(app: *App) !bool {
     var iter = core.pollEvents();
     while (iter.next()) |event| {
         switch (event) {
-            .close => return true,
+            .close => {
+                std.log.info("Atlas/App.zig: close()", .{});
+                return true;
+            },
             .mouse_press => |e| {
                 switch (e.button) {
                     .left => {
