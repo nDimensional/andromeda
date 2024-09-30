@@ -90,6 +90,7 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     graph.positions = positions_ptr[0..graph.node_count];
 
     graph.z = try allocator.alloc(f32, graph.node_count);
+    for (graph.z) |*z| z.* = 0;
 
     return graph;
 }
@@ -152,7 +153,7 @@ fn loadNodes(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
         const i = node.idx - 1;
         self.positions[i] = .{ node.x, node.y };
-        self.z[i] = @floatFromInt(node.incoming_degree);
+        // self.z[i] = @floatFromInt(node.incoming_degree);
 
         if (j % batch_size == 0) {
             const value = @as(f64, @floatFromInt(j)) / total;
@@ -181,6 +182,8 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
         if (s < self.node_count and t < self.node_count) {
             try self.sources[s].append(self.allocator, t);
             try self.targets[t].append(self.allocator, s);
+
+            self.z[t] += 1;
 
             if (i % batch_size == 0) {
                 const value = @as(f64, @floatFromInt(i)) / total;
