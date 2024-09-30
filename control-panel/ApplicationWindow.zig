@@ -374,7 +374,7 @@ pub const ApplicationWindow = extern struct {
             .count = engine.count,
             .energy = energy,
             .time = time / 1_000_000,
-            .swing = engine.swing,
+            .swing = engine.swing / @as(f32, @floatFromInt(engine.graph.node_count)),
         };
 
         try win.private().beacon.publish();

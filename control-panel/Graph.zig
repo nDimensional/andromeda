@@ -175,7 +175,7 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
     defer self.store.select_edges.reset();
 
     var i: usize = 0;
-    while (try self.store.select_edges.step()) |edge| {
+    while (try self.store.select_edges.step()) |edge| : (i += 1) {
         const s: u32 = @intCast(edge.source - 1);
         const t: u32 = @intCast(edge.target - 1);
         if (s < self.node_count and t < self.node_count) {
@@ -184,12 +184,11 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
             self.z[t] += 1;
             self.edge_count += 1;
+        }
 
-            if (i % batch_size == 0) {
-                const value = @as(f64, @floatFromInt(i)) / total;
-                self.progress.setValue(value);
-                i += 1;
-            }
+        if (i % batch_size == 0) {
+            const value = @as(f64, @floatFromInt(i)) / total;
+            self.progress.setValue(value);
         }
     }
 }
