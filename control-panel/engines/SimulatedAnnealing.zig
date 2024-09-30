@@ -228,13 +228,13 @@ fn updateNode(self: *Engine, i: usize) !f32 {
     f_a += center * self.params.getAttraction(a, .{ 0, 0 });
     f_b += center * self.params.getAttraction(b, .{ 0, 0 });
 
-    for (self.graph.sources[i].items) |t| {
+    for (self.graph.outgoing_edges[i].items) |t| {
         const p_t = self.graph.positions[t];
         f_a += self.params.getAttraction(a, p_t);
         f_b += self.params.getAttraction(b, p_t);
     }
 
-    for (self.graph.targets[i].items) |s| {
+    for (self.graph.incoming_edges[i].items) |s| {
         const p_s = self.graph.positions[s];
         f_a += self.params.getAttraction(p_s, a);
         f_b += self.params.getAttraction(p_s, b);

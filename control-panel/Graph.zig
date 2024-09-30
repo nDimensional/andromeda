@@ -32,11 +32,9 @@ prng: std.Random.Xoshiro256,
 node_count: usize,
 edge_count: usize,
 
-sources: []std.ArrayListUnmanaged(u32),
-targets: []std.ArrayListUnmanaged(u32),
+outgoing_edges: []std.ArrayListUnmanaged(u32),
+incoming_edges: []std.ArrayListUnmanaged(u32),
 
-// source: []u32,
-// target: []u32,
 z: []f32,
 
 positions: []@Vector(2, f32),
@@ -77,11 +75,11 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     std.log.info("NODE_COUNT: {d}", .{graph.node_count});
     std.log.info("EDGE_COUNT: {d}", .{graph.edge_count});
 
-    graph.sources = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
-    graph.targets = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
+    graph.outgoing_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
+    graph.incoming_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
 
-    for (graph.sources) |*list| list.* = std.ArrayListUnmanaged(u32){};
-    for (graph.targets) |*list| list.* = std.ArrayListUnmanaged(u32){};
+    for (graph.outgoing_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
+    for (graph.incoming_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
 
     const writer_size = @sizeOf(@Vector(2, f32)) * graph.node_count;
     graph.writer = try sho.Writer(SHM_NAME).init(writer_size);
@@ -98,11 +96,11 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
 pub fn deinit(self: *const Graph) void {
     self.allocator.free(self.z);
 
-    for (self.sources) |*list| list.deinit(self.allocator);
-    for (self.targets) |*list| list.deinit(self.allocator);
+    for (self.outgoing_edges) |*list| list.deinit(self.allocator);
+    for (self.incoming_edges) |*list| list.deinit(self.allocator);
 
-    self.allocator.free(self.sources);
-    self.allocator.free(self.targets);
+    self.allocator.free(self.outgoing_edges);
+    self.allocator.free(self.incoming_edges);
 
     self.writer.deinit();
     self.allocator.destroy(self);
@@ -180,8 +178,8 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
         const s: u32 = @intCast(edge.source - 1);
         const t: u32 = @intCast(edge.target - 1);
         if (s < self.node_count and t < self.node_count) {
-            try self.sources[s].append(self.allocator, t);
-            try self.targets[t].append(self.allocator, s);
+            try self.outgoing_edges[s].append(self.allocator, t);
+            try self.incoming_edges[t].append(self.allocator, s);
 
             self.z[t] += 1;
 

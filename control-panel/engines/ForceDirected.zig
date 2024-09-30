@@ -9,8 +9,6 @@ const Engine = @This();
 
 const node_pool_size = 15;
 const edge_pool_size = 15;
-// const node_pool_size = 1;
-// const edge_pool_size = 1;
 
 var energy_pool: [node_pool_size]f32 = undefined;
 var min_x_pool: [node_pool_size]f32 = undefined;
@@ -95,10 +93,10 @@ pub fn tick(self: *Engine) !f32 {
 
     const node_count = self.graph.node_count;
     var pool: [node_pool_size]std.Thread = undefined;
-    for (0..node_pool_size) |i| {
-        const min = i * node_count / node_pool_size;
-        const max = (i + 1) * node_count / node_pool_size;
-        pool[i] = try std.Thread.spawn(.{}, updateNodeForces, .{ self, min, max, i });
+    for (0..node_pool_size) |pool_i| {
+        const min = pool_i * node_count / node_pool_size;
+        const max = (pool_i + 1) * node_count / node_pool_size;
+        pool[pool_i] = try std.Thread.spawn(.{}, updateNodes, .{ self, min, max, pool_i });
     }
 
     for (0..node_pool_size) |i| pool[i].join();
@@ -155,14 +153,14 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     }
 }
 
-fn updateNodeForces(self: *Engine, min: usize, max: usize, bucket: usize) void {
+fn updateNodes(self: *Engine, min: usize, max: usize, pool_i: usize) void {
     const temperature: Params.Force = @splat(self.params.temperature);
     const center: Params.Force = @splat(self.params.center);
 
-    min_x_pool[bucket] = 0;
-    max_x_pool[bucket] = 0;
-    min_y_pool[bucket] = 0;
-    max_y_pool[bucket] = 0;
+    min_x_pool[pool_i] = 0;
+    max_x_pool[pool_i] = 0;
+    min_y_pool[pool_i] = 0;
+    max_y_pool[pool_i] = 0;
 
     var sum: f32 = 0;
     for (min..max) |i| {
@@ -175,10 +173,10 @@ fn updateNodeForces(self: *Engine, min: usize, max: usize, bucket: usize) void {
 
         var f: @Vector(2, f32) = .{ 0, 0 };
 
-        for (self.graph.sources[i].items) |j|
+        for (self.graph.outgoing_edges[i].items) |j|
             f += self.params.getAttraction(p, self.graph.positions[j]);
 
-        for (self.graph.targets[i].items) |j|
+        for (self.graph.incoming_edges[i].items) |j|
             f += self.params.getAttraction(p, self.graph.positions[j]);
 
         for (self.quads) |tree|
@@ -189,15 +187,15 @@ fn updateNodeForces(self: *Engine, min: usize, max: usize, bucket: usize) void {
         p += temperature * f;
         self.graph.positions[i] = p;
 
-        min_x_pool[bucket] = @min(min_x_pool[bucket], p[0]);
-        max_x_pool[bucket] = @max(max_x_pool[bucket], p[0]);
-        min_y_pool[bucket] = @min(min_y_pool[bucket], p[1]);
-        max_y_pool[bucket] = @max(max_y_pool[bucket], p[1]);
+        min_x_pool[pool_i] = @min(min_x_pool[pool_i], p[0]);
+        max_x_pool[pool_i] = @max(max_x_pool[pool_i], p[0]);
+        min_y_pool[pool_i] = @min(min_y_pool[pool_i], p[1]);
+        max_y_pool[pool_i] = @max(max_y_pool[pool_i], p[1]);
 
         sum += std.math.sqrt(@reduce(.Add, f * f));
     }
 
-    energy_pool[bucket] = sum;
+    energy_pool[pool_i] = sum;
 }
 
 fn getNodeForce(self: *Engine, p: Params.Point, mass: f32) Params.Force {
