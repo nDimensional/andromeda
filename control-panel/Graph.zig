@@ -63,12 +63,13 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
         },
         .count => |count| {
             graph.node_count = count;
-            graph.edge_count = try store.countEdgesInRange(.{
-                .min_source = 1,
-                .max_source = @intCast(count),
-                .min_target = 1,
-                .max_target = @intCast(count),
-            });
+            graph.edge_count = 0;
+            // graph.edge_count = try store.countEdgesInRange(.{
+            //     .min_source = 1,
+            //     .max_source = @intCast(count),
+            //     .min_target = 1,
+            //     .max_target = @intCast(count),
+            // });
         },
     }
 
@@ -182,6 +183,7 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
             try self.incoming_edges[t].append(self.allocator, s);
 
             self.z[t] += 1;
+            self.edge_count += 1;
 
             if (i % batch_size == 0) {
                 const value = @as(f64, @floatFromInt(i)) / total;

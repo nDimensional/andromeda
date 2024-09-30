@@ -8,26 +8,28 @@ const Params = @import("../Params.zig");
 const Engine = @This();
 
 const node_pool_size = 15;
-const edge_pool_size = 15;
 
-var energy_pool: [node_pool_size]f32 = undefined;
-var min_x_pool: [node_pool_size]f32 = undefined;
-var max_x_pool: [node_pool_size]f32 = undefined;
-var min_y_pool: [node_pool_size]f32 = undefined;
-var max_y_pool: [node_pool_size]f32 = undefined;
+const Stats = struct {
+    energy: f32,
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    swing: f32,
+};
 
 allocator: std.mem.Allocator,
 timer: std.time.Timer,
 graph: *const Graph,
 quads: [4]Quadtree,
 node_forces: []Params.Force,
-edge_forces: [edge_pool_size][]Params.Force,
 
-count: u64 = 0,
-min_y: f32 = 0,
-max_y: f32 = 0,
-min_x: f32 = 0,
-max_x: f32 = 0,
+count: u64,
+min_y: f32,
+max_y: f32,
+min_x: f32,
+max_x: f32,
+swing: f32,
 
 params: *const Params,
 
@@ -48,16 +50,12 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     self.node_forces = try allocator.alloc(Params.Force, graph.node_count);
     for (self.node_forces) |*f| f.* = .{ 0, 0 };
 
-    for (0..edge_pool_size) |i| {
-        self.edge_forces[i] = try allocator.alloc(Params.Force, graph.node_count);
-        for (self.edge_forces[i]) |*f| f.* = .{ 0, 0 };
-    }
-
     self.count = 0;
     self.min_x = 0;
     self.max_x = 0;
     self.min_y = 0;
     self.max_y = 0;
+    self.swing = 0;
 
     for (graph.positions) |p| {
         self.min_x = @min(self.min_x, p[0]);
@@ -71,12 +69,7 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 
 pub fn deinit(self: *const Engine) void {
     inline for (self.quads) |q| q.deinit();
-
     self.allocator.free(self.node_forces);
-    inline for (self.edge_forces) |edge_forces| {
-        self.allocator.free(edge_forces);
-    }
-
     self.allocator.destroy(self);
 }
 
@@ -91,39 +84,45 @@ pub fn tick(self: *Engine) !f32 {
 
     try self.rebuildTrees();
 
+    var stats_pool: [node_pool_size]Stats = undefined;
+
     const node_count = self.graph.node_count;
     var pool: [node_pool_size]std.Thread = undefined;
     for (0..node_pool_size) |pool_i| {
         const min = pool_i * node_count / node_pool_size;
         const max = (pool_i + 1) * node_count / node_pool_size;
-        pool[pool_i] = try std.Thread.spawn(.{}, updateNodes, .{ self, min, max, pool_i });
+        pool[pool_i] = try std.Thread.spawn(.{}, updateNodes, .{ self, min, max, &stats_pool[pool_i] });
     }
 
     for (0..node_pool_size) |i| pool[i].join();
 
     std.log.info("updated node forces in {d}ms", .{self.timer.lap() / 1_000_000});
 
+    var energy: f32 = 0;
     self.min_x = 0;
     self.max_x = 0;
     self.min_y = 0;
     self.max_y = 0;
+    self.swing = 0;
 
-    for (min_x_pool) |x| self.min_x = @min(self.min_x, x);
-    for (max_x_pool) |x| self.max_x = @max(self.max_x, x);
-    for (min_y_pool) |y| self.min_y = @min(self.min_y, y);
-    for (max_y_pool) |y| self.max_y = @max(self.max_y, y);
+    for (stats_pool) |stats| {
+        self.min_x = @min(self.min_x, stats.min_x);
+        self.max_x = @max(self.max_x, stats.max_x);
+        self.min_y = @min(self.min_y, stats.min_y);
+        self.max_y = @max(self.max_y, stats.max_y);
+        self.swing += stats.swing;
+        energy += stats.energy;
+    }
 
     std.log.info("applied forces in {d}ms", .{self.timer.lap() / 1_000_000});
 
     self.count += 1;
 
-    var sum: f32 = 0;
-    for (energy_pool) |f| sum += f;
+    const total: f32 = @floatFromInt(self.graph.node_count);
 
-    const energy = sum / @as(f32, @floatFromInt(self.graph.node_count));
-    std.log.info("energy: {d}", .{energy});
+    std.log.info("energy: {d}", .{energy / total});
 
-    return energy;
+    return energy / total;
 }
 
 fn rebuildTrees(self: *Engine) !void {
@@ -153,16 +152,17 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     }
 }
 
-fn updateNodes(self: *Engine, min: usize, max: usize, pool_i: usize) void {
-    const temperature: Params.Force = @splat(self.params.temperature);
+fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
+    // const temperature: Params.Force = @splat(self.params.temperature);
+    const temperature = self.params.temperature;
     const center: Params.Force = @splat(self.params.center);
 
-    min_x_pool[pool_i] = 0;
-    max_x_pool[pool_i] = 0;
-    min_y_pool[pool_i] = 0;
-    max_y_pool[pool_i] = 0;
+    stats.min_x = 0;
+    stats.max_x = 0;
+    stats.min_y = 0;
+    stats.max_y = 0;
+    stats.energy = 0;
 
-    var sum: f32 = 0;
     for (min..max) |i| {
         if (i >= self.graph.node_count) {
             break;
@@ -184,18 +184,30 @@ fn updateNodes(self: *Engine, min: usize, max: usize, pool_i: usize) void {
 
         f += center * self.params.getAttraction(p, .{ 0, 0 });
 
-        p += temperature * f;
+        const swing = norm(self.node_forces[i] - f);
+        self.node_forces[i] = f;
+
+        const k_s = 100;
+        const s_g = temperature;
+        const speed = k_s * s_g / (1 + s_g * std.math.sqrt(swing));
+
+        // p += temperature * f;
+        p += @as(@Vector(2, f32), @splat(speed * temperature)) * f;
+
         self.graph.positions[i] = p;
 
-        min_x_pool[pool_i] = @min(min_x_pool[pool_i], p[0]);
-        max_x_pool[pool_i] = @max(max_x_pool[pool_i], p[0]);
-        min_y_pool[pool_i] = @min(min_y_pool[pool_i], p[1]);
-        max_y_pool[pool_i] = @max(max_y_pool[pool_i], p[1]);
+        stats.min_x = @min(stats.min_x, p[0]);
+        stats.max_x = @max(stats.max_x, p[0]);
+        stats.min_y = @min(stats.min_y, p[1]);
+        stats.max_y = @max(stats.max_y, p[1]);
+        stats.swing += (self.graph.z[i] + 1) * swing;
 
-        sum += std.math.sqrt(@reduce(.Add, f * f));
+        stats.energy += norm(f);
     }
+}
 
-    energy_pool[pool_i] = sum;
+inline fn norm(f: Params.Force) f32 {
+    return std.math.sqrt(@reduce(.Add, f * f));
 }
 
 fn getNodeForce(self: *Engine, p: Params.Point, mass: f32) Params.Force {
