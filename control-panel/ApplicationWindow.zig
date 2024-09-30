@@ -291,13 +291,20 @@ pub const ApplicationWindow = extern struct {
 
         const store = win.private().store orelse return;
 
-        const filter = win.private().filter_dropdown.getSelected();
-        win.log("Loading graph (filter: {d})", .{filter});
+        const filter = switch (win.private().filter_dropdown.getSelected()) {
+            0 => Graph.Filter{ .all = {} },
+            else => |i| Graph.Filter{
+                .count = std.math.pow(usize, 10, i - 1 + min_filter_level),
+            },
+        };
+
+        win.log("Loading graph (filter: {any})", .{filter});
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
         const graph = Graph.init(c_allocator, store, .{
             .progress_bar = win.private().progress_bar,
+            .filter = filter,
         }) catch |err| @panic(@errorName(err));
 
         win.private().open_button.as(gtk.Widget).setSensitive(0);

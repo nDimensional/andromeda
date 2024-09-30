@@ -80,31 +80,8 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     graph.sources = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
     graph.targets = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
 
-    for (graph.sources, 0..) |*list, i| {
-        list.* = std.ArrayListUnmanaged(u32){};
-        _ = i;
-        // const outgoing_count = try store.countEdgesInRange(.{
-        //     .min_source = @intCast(i + 1),
-        //     .max_source = @intCast(i + 1),
-        //     .min_target = 1,
-        //     .max_target = @intCast(graph.node_count),
-        // });
-
-        // try list.ensureTotalCapacity(allocator, outgoing_count);
-    }
-
-    for (graph.targets, 0..) |*list, i| {
-        list.* = std.ArrayListUnmanaged(u32){};
-        _ = i;
-        // const incoming_count = try store.countEdgesInRange(.{
-        //     .min_source = 1,
-        //     .max_source = @intCast(graph.node_count),
-        //     .min_target = @intCast(i),
-        //     .max_target = @intCast(i),
-        // });
-
-        // try list.ensureTotalCapacity(allocator, incoming_count);
-    }
+    for (graph.sources) |*list| list.* = std.ArrayListUnmanaged(u32){};
+    for (graph.targets) |*list| list.* = std.ArrayListUnmanaged(u32){};
 
     const writer_size = @sizeOf(@Vector(2, f32)) * graph.node_count;
     graph.writer = try sho.Writer(SHM_NAME).init(writer_size);
@@ -171,7 +148,7 @@ fn loadNodes(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
     var j: usize = 0;
     while (try self.store.select_nodes.step()) |node| : (j += 1) {
-        if (j > self.node_count) break;
+        if (j >= self.node_count) break;
 
         const i = node.idx - 1;
         self.positions[i] = .{ node.x, node.y };
@@ -198,15 +175,18 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
     defer self.store.select_edges.reset();
 
     var i: usize = 0;
-    while (try self.store.select_edges.step()) |edge| : (i += 1) {
-        const s = edge.source - 1;
-        const t = edge.target - 1;
-        try self.sources[s].append(self.allocator, t);
-        try self.targets[t].append(self.allocator, s);
+    while (try self.store.select_edges.step()) |edge| {
+        const s: u32 = @intCast(edge.source - 1);
+        const t: u32 = @intCast(edge.target - 1);
+        if (s < self.node_count and t < self.node_count) {
+            try self.sources[s].append(self.allocator, t);
+            try self.targets[t].append(self.allocator, s);
 
-        if (i % batch_size == 0) {
-            const value = @as(f64, @floatFromInt(i)) / total;
-            self.progress.setValue(value);
+            if (i % batch_size == 0) {
+                const value = @as(f64, @floatFromInt(i)) / total;
+                self.progress.setValue(value);
+                i += 1;
+            }
         }
     }
 }
@@ -228,14 +208,10 @@ pub fn randomize(self: *Graph, s: f32) void {
     for (0..self.node_count) |i| {
         const p = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.node_count));
 
-        // var x: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // x -= @floatFromInt(s / 2);
         var x = s * random.float(f32);
         x -= s / 2;
         x += p;
 
-        // var y: f32 = @floatFromInt(random.uintLessThan(u32, s));
-        // y -= @floatFromInt(s / 2);
         var y = s * random.float(f32);
         y -= s / 2;
         y += p;

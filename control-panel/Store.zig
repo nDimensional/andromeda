@@ -10,10 +10,14 @@ const sqlite = @import("sqlite");
 const Progress = @import("Progress.zig");
 
 pub const UpdateParams = struct { x: f32, y: f32, idx: u32 };
-pub const SelectEdgesBySourceParams = struct { source: u32 };
+pub const SelectEdgesBySourceParams = struct { source: u32, min_target: u32, max_target: u32 };
 pub const SelectEdgesBySourceResult = struct { idx: u32, target: u32 };
-pub const SelectEdgesByTargetParams = struct { target: u32 };
+pub const SelectEdgesByTargetParams = struct { target: u32, min_source: u32, max_source: u32 };
 pub const SelectEdgesByTargetResult = struct { idx: u32, source: u32 };
+pub const CountEdgesBySourceParams = struct { source: u32, min_target: u32, max_target: u32 };
+pub const CountEdgesBySourceResult = struct { count: usize };
+pub const CountEdgesByTargetParams = struct { target: u32, min_source: u32, max_source: u32 };
+pub const CountEdgesByTargetResult = struct { count: usize };
 
 pub const SelectNodesParams = struct {};
 pub const SelectNodesResult = struct { idx: u32, incoming_degree: u32, x: f32, y: f32 };
@@ -26,6 +30,9 @@ pub const CountResult = struct { count: usize };
 pub const CountEdgesInRangeParams = struct { min_source: u32, max_source: u32, min_target: u32, max_target: u32 };
 pub const CountEdgesInRangeResult = struct { count: usize };
 
+pub const SelectEdgesInRangeParams = struct { min_source: u32, max_source: u32, min_target: u32, max_target: u32 };
+pub const SelectEdgesInRangeResult = struct { idx: u32, source: u32, target: u32 };
+
 const Store = @This();
 
 allocator: std.mem.Allocator,
@@ -37,6 +44,9 @@ select_nodes: sqlite.Statement(SelectNodesParams, SelectNodesResult),
 select_edges: sqlite.Statement(SelectEdgesParams, SelectEdgesResult),
 select_edges_by_source: sqlite.Statement(SelectEdgesBySourceParams, SelectEdgesBySourceResult),
 select_edges_by_target: sqlite.Statement(SelectEdgesByTargetParams, SelectEdgesByTargetResult),
+count_edges_by_source: sqlite.Statement(CountEdgesBySourceParams, CountEdgesBySourceResult),
+count_edges_by_target: sqlite.Statement(CountEdgesByTargetParams, CountEdgesByTargetResult),
+select_edges_in_range: sqlite.Statement(SelectEdgesInRangeParams, SelectEdgesInRangeResult),
 count_edges_in_range: sqlite.Statement(CountEdgesInRangeParams, CountEdgesInRangeResult),
 update: sqlite.Statement(UpdateParams, void),
 
@@ -70,11 +80,27 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     );
 
     store.select_edges_by_source = try store.db.prepare(SelectEdgesBySourceParams, SelectEdgesBySourceResult,
-        \\ SELECT idx, target FROM edges WHERE source = :source
+        \\ SELECT idx, target FROM edges WHERE source = :source AND :min_target <= target AND target <= :max_target
     );
 
     store.select_edges_by_target = try store.db.prepare(SelectEdgesByTargetParams, SelectEdgesByTargetResult,
-        \\ SELECT idx, source FROM edges WHERE target = :target
+        \\ SELECT idx, source FROM edges WHERE target = :target AND :min_source <= source AND source <= :max_source
+    );
+
+    store.count_edges_by_source = try store.db.prepare(CountEdgesBySourceParams, CountEdgesBySourceResult,
+        \\ SELECT count(*) as count FROM edges WHERE source = :source AND :min_target <= target AND target <= :max_target
+    );
+
+    store.count_edges_by_target = try store.db.prepare(CountEdgesByTargetParams, CountEdgesByTargetResult,
+        \\ SELECT count(*) as count FROM edges WHERE target = :target AND :min_source <= source AND source <= :max_source
+    );
+
+    store.select_edges_in_range = try store.db.prepare(SelectEdgesInRangeParams, SelectEdgesInRangeResult,
+        \\ SELECT idx, source, target FROM edges
+        \\   WHERE :min_target <= target
+        \\     AND target <= :max_target
+        \\     AND :min_source <= source
+        \\     AND source <= :max_source
     );
 
     store.count_edges_in_range = try store.db.prepare(CountEdgesInRangeParams, CountEdgesInRangeResult,
@@ -99,6 +125,9 @@ pub fn deinit(self: *const Store) void {
     self.select_edges.finalize();
     self.select_edges_by_source.finalize();
     self.select_edges_by_target.finalize();
+    self.count_edges_by_source.finalize();
+    self.count_edges_by_target.finalize();
+    self.select_edges_in_range.finalize();
     self.count_edges_in_range.finalize();
     self.update.finalize();
 
