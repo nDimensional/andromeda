@@ -18,8 +18,9 @@ const Params = @import("Params.zig");
 
 const Beacon = @import("Beacon.zig");
 
-const EngineTag = @import("engines/Engine.zig").EngineTag;
-const Engine = @import("engines/Engine.zig").Engine;
+// const EngineTag = @import("engines/Engine.zig").EngineTag;
+// const Engine = @import("engines/Engine.zig").Engine;
+const Engine = @import("engines/ForceDirected.zig");
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 const EXECUTABLE_PATH = build_options.atlas_path;
@@ -48,7 +49,7 @@ pub const ApplicationWindow = extern struct {
 
     pub const Parent = gtk.ApplicationWindow;
 
-    const Metrics = struct { count: u64, energy: f32, time: u64 };
+    const Metrics = struct { count: u64, energy: f32, time: u64, swing: f32 };
 
     const Private = struct {
         path: ?[*:0]const u8,
@@ -83,7 +84,8 @@ pub const ApplicationWindow = extern struct {
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
-        speed: *gtk.Label,
+        // speed: *gtk.Label,
+        // swing: *gtk.Label,
 
         params: Params,
         metrics: Metrics,
@@ -232,16 +234,19 @@ pub const ApplicationWindow = extern struct {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        const tag = switch (win.private().engine_dropdown.getSelected()) {
-            0 => EngineTag.ForceDirected,
-            1 => EngineTag.SimulatedAnnealing,
-            else => |i| {
-                std.log.warn("invalid engine index: {d}", .{i});
-                return;
-            },
-        };
+        // const tag = switch (win.private().engine_dropdown.getSelected()) {
+        //     0 => EngineTag.ForceDirected,
+        //     1 => EngineTag.SimulatedAnnealing,
+        //     else => |i| {
+        //         std.log.warn("invalid engine index: {d}", .{i});
+        //         return;
+        //     },
+        // };
 
-        const engine = Engine.init(c_allocator, graph, params, tag) catch |err| @panic(@errorName(err));
+        // const engine = Engine.init(c_allocator, graph, params, tag) catch |err| @panic(@errorName(err));
+        // defer engine.deinit();
+
+        const engine = Engine.init(c_allocator, graph, params) catch |err| @panic(@errorName(err));
         defer engine.deinit();
 
         win.tick(engine) catch |err| @panic(@errorName(err));
@@ -332,16 +337,19 @@ pub const ApplicationWindow = extern struct {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        const tag = switch (win.private().engine_dropdown.getSelected()) {
-            0 => EngineTag.ForceDirected,
-            1 => EngineTag.SimulatedAnnealing,
-            else => |i| {
-                std.log.warn("invalid engine index: {d}", .{i});
-                return;
-            },
-        };
+        // const tag = switch (win.private().engine_dropdown.getSelected()) {
+        //     0 => EngineTag.ForceDirected,
+        //     1 => EngineTag.SimulatedAnnealing,
+        //     else => |i| {
+        //         std.log.warn("invalid engine index: {d}", .{i});
+        //         return;
+        //     },
+        // };
 
-        const engine = Engine.init(c_allocator, graph, params, tag) catch |err| @panic(@errorName(err));
+        // const engine = Engine.init(c_allocator, graph, params, tag) catch |err| @panic(@errorName(err));
+        // defer engine.deinit();
+
+        const engine = Engine.init(c_allocator, graph, params) catch |err| @panic(@errorName(err));
         defer engine.deinit();
 
         win.private().status = .Running;
@@ -358,14 +366,15 @@ pub const ApplicationWindow = extern struct {
         _ = glib.idleAdd(&handleLoopStop, win);
     }
 
-    fn tick(win: *ApplicationWindow, engine: Engine) !void {
+    fn tick(win: *ApplicationWindow, engine: *Engine) !void {
         const start = win.private().timer.read();
         const energy = try engine.tick();
         const time = win.private().timer.read() - start;
         win.private().metrics = .{
-            .count = engine.count(),
+            .count = engine.count,
             .energy = energy,
             .time = time / 1_000_000,
+            .swing = engine.swing,
         };
 
         try win.private().beacon.publish();
@@ -405,14 +414,17 @@ pub const ApplicationWindow = extern struct {
     fn updateMetrics(win: *ApplicationWindow) !void {
         const metrics = win.private().metrics;
 
-        const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}", .{metrics.count});
+        const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}, Time: {d}ms", .{ metrics.count, metrics.time });
         win.private().ticker.setMarkup(ticker_markup);
 
-        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}", .{metrics.energy});
+        // const speed_markup = try std.fmt.bufPrintZ(&label_buffer, "Time: {d}ms", .{metrics.time});
+        // win.private().speed.setMarkup(speed_markup);
+
+        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}, Swing: {e:.3}", .{ metrics.energy, metrics.swing });
         win.private().energy.setMarkup(energy_markup);
 
-        const speed_markup = try std.fmt.bufPrintZ(&label_buffer, "Time: {d}ms", .{metrics.time});
-        win.private().speed.setMarkup(speed_markup);
+        // const swing_markup = try std.fmt.bufPrintZ(&label_buffer, "Swing: {e:.3}", .{metrics.swing});
+        // win.private().speed.setMarkup(swing_markup);
     }
 
     fn log(win: *ApplicationWindow, comptime format: []const u8, args: anytype) void {
@@ -442,7 +454,8 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("progress_bar", .{});
             class.bindTemplateChildPrivate("ticker", .{});
             class.bindTemplateChildPrivate("energy", .{});
-            class.bindTemplateChildPrivate("speed", .{});
+            // class.bindTemplateChildPrivate("speed", .{});
+            // class.bindTemplateChildPrivate("swing", .{});
 
             class.bindTemplateChildPrivate("open_button", .{});
             class.bindTemplateChildPrivate("load_button", .{});
@@ -459,7 +472,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("temperature", .{});
             class.bindTemplateChildPrivate("engine_dropdown", .{});
             class.bindTemplateChildPrivate("filter_dropdown", .{});
-            // class.bindTemplateChildPrivate("filter_levels", .{});
         }
 
         fn bindTemplateChildPrivate(class: *Class, comptime name: [:0]const u8, comptime options: gtk.ext.BindTemplateChildOptions) void {
