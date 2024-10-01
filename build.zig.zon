@@ -35,8 +35,8 @@
             .hash = "1220fcb9b8da8bcfdaa18c81678c6b5cf41d63a2bf9fde7551b4390279cc473a2520",
         },
         .gobject = .{
-            .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.2.0/bindings-gnome46.tar.zst",
-            .hash = "122072ebbd8a100c9e2f682cd130c3707a8441d1bba2c8f5f38111a23a2db1361de7",
+            .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.2.1/bindings-gnome46.tar.zst",
+            .hash = "12203bb2843d2b9db725edaaa9868a817e60dd71fba53f1e7b04b49d2d5bae90c057",
         },
         .libintl = .{
             .url = "git+https://github.com/ianprime0509/zig-libintl?ref=main#0c436aa63c31bb8ad5d7d59800638f784e1e04a5",
