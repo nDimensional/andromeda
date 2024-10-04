@@ -31,9 +31,8 @@
             </child>
             <child>
               <object class="GtkButton" id="randomize_button">
-                <!-- <property name="icon-name">view-refresh-symbolic</property> -->
-                <!-- <property name="tooltip-text">Randomize</property> -->
-                <property name="label">Randomize</property>
+                <property name="icon-name">view-refresh-symbolic</property>
+                <property name="tooltip-text">Randomize</property>
               </object>
             </child>
           </object>
@@ -47,18 +46,6 @@
             <property name="margin-end">10</property>
             <!-- <property name="margin-top">10</property> -->
             <property name="margin-bottom">10</property>
-            <child>
-              <object class="GtkDropDown" id="engine_dropdown">
-                <property name="model">
-                  <object class="GtkStringList">
-                    <items>
-                      <item translatable="yes">Force Directed</item>
-                      <item translatable="yes">Simulated Annealing</item>
-                    </items>
-                  </object>
-                </property>
-              </object>
-            </child>
             <child>
               <object class="GtkButton" id="save_button">
                 <property name="icon-name">document-save-symbolic</property>

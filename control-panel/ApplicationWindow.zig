@@ -74,7 +74,6 @@ pub const ApplicationWindow = extern struct {
         view_button: *gtk.Button,
         randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
-        engine_dropdown: *gtk.DropDown,
         filter_dropdown: *gtk.DropDown,
         load_button: *gtk.Button,
         filter_levels: *gtk.StringList,
@@ -146,7 +145,6 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
-        win.private().engine_dropdown.as(gtk.Widget).setSensitive(0);
         win.private().filter_dropdown.as(gtk.Widget).setSensitive(0);
         win.private().load_button.as(gtk.Widget).setSensitive(0);
 
@@ -155,7 +153,6 @@ pub const ApplicationWindow = extern struct {
         win.private().temperature.as(gtk.Widget).setSensitive(0);
         win.private().center.as(gtk.Widget).setSensitive(0);
 
-        win.private().engine_dropdown.setSelected(0);
         win.private().filter_dropdown.setSelected(0);
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
@@ -231,18 +228,6 @@ pub const ApplicationWindow = extern struct {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        // const tag = switch (win.private().engine_dropdown.getSelected()) {
-        //     0 => EngineTag.ForceDirected,
-        //     1 => EngineTag.SimulatedAnnealing,
-        //     else => |i| {
-        //         std.log.warn("invalid engine index: {d}", .{i});
-        //         return;
-        //     },
-        // };
-
-        // const engine = Engine.init(c_allocator, graph, params, tag) catch |err| @panic(@errorName(err));
-        // defer engine.deinit();
-
         const engine = Engine.init(c_allocator, graph, params) catch |err| @panic(@errorName(err));
         defer engine.deinit();
 
@@ -259,7 +244,6 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(1);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
-        win.private().engine_dropdown.as(gtk.Widget).setSensitive(0);
         win.private().filter_dropdown.as(gtk.Widget).setSensitive(0);
         win.private().load_button.as(gtk.Widget).setSensitive(0);
 
@@ -333,18 +317,6 @@ pub const ApplicationWindow = extern struct {
     fn loop(win: *ApplicationWindow) !void {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
-
-        // const tag = switch (win.private().engine_dropdown.getSelected()) {
-        //     0 => EngineTag.ForceDirected,
-        //     1 => EngineTag.SimulatedAnnealing,
-        //     else => |i| {
-        //         std.log.warn("invalid engine index: {d}", .{i});
-        //         return;
-        //     },
-        // };
-
-        // const engine = Engine.init(c_allocator, graph, params, tag) catch |err| @panic(@errorName(err));
-        // defer engine.deinit();
 
         const engine = Engine.init(c_allocator, graph, params) catch |err| @panic(@errorName(err));
         defer engine.deinit();
@@ -452,8 +424,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("progress_bar", .{});
             class.bindTemplateChildPrivate("ticker", .{});
             class.bindTemplateChildPrivate("energy", .{});
-            // class.bindTemplateChildPrivate("speed", .{});
-            // class.bindTemplateChildPrivate("swing", .{});
 
             class.bindTemplateChildPrivate("open_button", .{});
             class.bindTemplateChildPrivate("load_button", .{});
@@ -468,7 +438,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
-            class.bindTemplateChildPrivate("engine_dropdown", .{});
             class.bindTemplateChildPrivate("filter_dropdown", .{});
         }
 
@@ -500,7 +469,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
-    win.private().engine_dropdown.as(gtk.Widget).setSensitive(1);
     win.private().filter_dropdown.as(gtk.Widget).setSensitive(1);
     win.private().load_button.as(gtk.Widget).setSensitive(1);
 
@@ -529,7 +497,6 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
-    win.private().engine_dropdown.as(gtk.Widget).setSensitive(1);
     win.private().filter_dropdown.as(gtk.Widget).setSensitive(1);
     win.private().load_button.as(gtk.Widget).setSensitive(1);
 
