@@ -22,31 +22,6 @@
               </object>
             </child>
             <child>
-              <object class="GtkDropDown" id="filter_dropdown" />
-            </child>
-            <child>
-              <object class="GtkButton" id="load_button">
-                <property name="label">Load</property>
-              </object>
-            </child>
-            <child>
-              <object class="GtkButton" id="randomize_button">
-                <property name="icon-name">view-refresh-symbolic</property>
-                <property name="tooltip-text">Randomize</property>
-              </object>
-            </child>
-          </object>
-        </child>
-        <child>
-          <object class="GtkBox">
-            <property name="orientation">horizontal</property>
-            <property name="hexpand">true</property>
-            <property name="spacing">8</property>
-            <property name="margin-start">10</property>
-            <property name="margin-end">10</property>
-            <!-- <property name="margin-top">10</property> -->
-            <property name="margin-bottom">10</property>
-            <child>
               <object class="GtkButton" id="save_button">
                 <property name="icon-name">document-save-symbolic</property>
                 <property name="tooltip-text">Save</property>
@@ -68,6 +43,12 @@
               <object class="GtkButton" id="tick_button">
                 <property name="icon-name">go-next-symbolic</property>
                 <property name="tooltip-text">Tick</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="randomize_button">
+                <property name="icon-name">view-refresh-symbolic</property>
+                <property name="tooltip-text">Randomize</property>
               </object>
             </child>
             <child>

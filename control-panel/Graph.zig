@@ -16,15 +16,12 @@ pub const Count = struct { count: usize };
 const Graph = @This();
 const SHM_NAME = "ANDROMEDA";
 
-pub const FilterType = enum { all, count };
-pub const Filter = union(FilterType) {
-    all: void,
-    count: usize,
+pub const Options = struct {
+    progress_bar: ?*gtk.ProgressBar = null,
 };
 
 allocator: std.mem.Allocator,
 progress: Progress,
-filter: Filter,
 store: *Store,
 
 prng: std.Random.Xoshiro256,
@@ -40,38 +37,14 @@ z: []f32,
 positions: []@Vector(2, f32),
 writer: sho.Writer(SHM_NAME),
 
-pub const Options = struct {
-    filter: Filter = .{ .all = {} },
-    progress_bar: ?*gtk.ProgressBar = null,
-};
-
 pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Graph {
     const graph = try allocator.create(Graph);
     graph.allocator = allocator;
     graph.progress = Progress{ .progress_bar = options.progress_bar };
-    graph.filter = options.filter;
     graph.store = store;
-
     graph.prng = std.Random.Xoshiro256.init(0);
-
-    // std.log.info("STORE_NODE_COUNT: {d}", .{store.node_count});
-
-    switch (options.filter) {
-        .all => {
-            graph.node_count = try store.countNodes();
-            graph.edge_count = try store.countEdges();
-        },
-        .count => |count| {
-            graph.node_count = count;
-            graph.edge_count = 0;
-            // graph.edge_count = try store.countEdgesInRange(.{
-            //     .min_source = 1,
-            //     .max_source = @intCast(count),
-            //     .min_target = 1,
-            //     .max_target = @intCast(count),
-            // });
-        },
-    }
+    graph.node_count = try store.countNodes();
+    graph.edge_count = try store.countEdges();
 
     std.log.info("NODE_COUNT: {d}", .{graph.node_count});
     std.log.info("EDGE_COUNT: {d}", .{graph.edge_count});

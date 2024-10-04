@@ -39,8 +39,6 @@ const initial_params = Params{
 
 var label_buffer: [128]u8 = undefined;
 
-const min_filter_level = 2;
-
 pub const ApplicationWindow = extern struct {
     parent_instance: Parent,
 
@@ -74,14 +72,9 @@ pub const ApplicationWindow = extern struct {
         view_button: *gtk.Button,
         randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
-        filter_dropdown: *gtk.DropDown,
-        load_button: *gtk.Button,
-        filter_levels: *gtk.StringList,
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
-        // speed: *gtk.Label,
-        // swing: *gtk.Label,
 
         params: Params,
         metrics: Metrics,
@@ -125,7 +118,6 @@ pub const ApplicationWindow = extern struct {
         _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().view_button, *ApplicationWindow, &handleViewClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().randomize_button, *ApplicationWindow, &handleRandomizeClicked, win, .{});
-        _ = gtk.Button.signals.clicked.connect(win.private().load_button, *ApplicationWindow, &handleLoadClicked, win, .{});
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
@@ -145,21 +137,13 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
-        win.private().filter_dropdown.as(gtk.Widget).setSensitive(0);
-        win.private().load_button.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
         win.private().temperature.as(gtk.Widget).setSensitive(0);
         win.private().center.as(gtk.Widget).setSensitive(0);
 
-        win.private().filter_dropdown.setSelected(0);
-
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
-
-        win.private().filter_levels = gtk.StringList.new(null);
-        win.private().filter_levels.append("All nodes");
-        win.private().filter_dropdown.setModel(win.private().filter_levels.as(gio.ListModel));
 
         win.private().metrics_timer = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
         win.private().metrics.count = 0;
@@ -244,8 +228,6 @@ pub const ApplicationWindow = extern struct {
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(1);
         win.private().randomize_button.as(gtk.Widget).setSensitive(0);
-        win.private().filter_dropdown.as(gtk.Widget).setSensitive(0);
-        win.private().load_button.as(gtk.Widget).setSensitive(0);
 
         win.private().status = .Starting;
         win.private().engine_thread = std.Thread.spawn(.{}, loop, .{win}) catch |err| {
@@ -270,32 +252,6 @@ pub const ApplicationWindow = extern struct {
 
         win.private().beacon.publish() catch |err| @panic(@errorName(err));
         win.log("Randomized.", .{});
-    }
-
-    fn handleLoadClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        std.log.info("load clicked", .{});
-
-        const store = win.private().store orelse return;
-
-        const filter = switch (win.private().filter_dropdown.getSelected()) {
-            0 => Graph.Filter{ .all = {} },
-            else => |i| Graph.Filter{
-                .count = std.math.pow(usize, 10, i - 1 + min_filter_level),
-            },
-        };
-
-        win.log("Loading graph (filter: {any})", .{filter});
-
-        gtk.Stack.setVisibleChildName(win.private().stack, "loading");
-
-        const graph = Graph.init(c_allocator, store, .{
-            .progress_bar = win.private().progress_bar,
-            .filter = filter,
-        }) catch |err| @panic(@errorName(err));
-
-        win.private().open_button.as(gtk.Widget).setSensitive(0);
-        win.private().graph = graph;
-        graph.load(.{ .callback = &loadResultCallback, .callback_data = win });
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -368,17 +324,16 @@ pub const ApplicationWindow = extern struct {
         const filename = std.fs.path.basename(std.mem.span(path));
         const title = try std.fmt.bufPrintZ(&label_buffer, "Andromeda - {s}", .{filename});
         win.as(gtk.Window).setTitle(title);
-        win.private().filter_dropdown.as(gtk.Widget).setSensitive(1);
-        win.private().load_button.as(gtk.Widget).setSensitive(1);
 
-        const node_count = try store.countNodes();
-        const levels = std.math.log10_int(node_count);
-        const min = min_filter_level;
-        const max = @max(min_filter_level, levels);
-        for (min..max) |level| {
-            const name = try std.fmt.bufPrintZ(&label_buffer, "1e{d}", .{level});
-            win.private().filter_levels.append(name);
-        }
+        gtk.Stack.setVisibleChildName(win.private().stack, "loading");
+
+        const graph = Graph.init(c_allocator, store, .{
+            .progress_bar = win.private().progress_bar,
+        }) catch |err| @panic(@errorName(err));
+
+        win.private().open_button.as(gtk.Widget).setSensitive(0);
+        win.private().graph = graph;
+        graph.load(.{ .callback = &loadResultCallback, .callback_data = win });
     }
 
     fn updateMetrics(win: *ApplicationWindow) !void {
@@ -387,14 +342,8 @@ pub const ApplicationWindow = extern struct {
         const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}, Time: {d}ms", .{ metrics.count, metrics.time });
         win.private().ticker.setMarkup(ticker_markup);
 
-        // const speed_markup = try std.fmt.bufPrintZ(&label_buffer, "Time: {d}ms", .{metrics.time});
-        // win.private().speed.setMarkup(speed_markup);
-
         const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}, Swing: {e:.3}", .{ metrics.energy, metrics.swing });
         win.private().energy.setMarkup(energy_markup);
-
-        // const swing_markup = try std.fmt.bufPrintZ(&label_buffer, "Swing: {e:.3}", .{metrics.swing});
-        // win.private().speed.setMarkup(swing_markup);
     }
 
     fn log(win: *ApplicationWindow, comptime format: []const u8, args: anytype) void {
@@ -426,7 +375,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("energy", .{});
 
             class.bindTemplateChildPrivate("open_button", .{});
-            class.bindTemplateChildPrivate("load_button", .{});
             class.bindTemplateChildPrivate("save_button", .{});
             class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});
@@ -438,7 +386,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
-            class.bindTemplateChildPrivate("filter_dropdown", .{});
         }
 
         fn bindTemplateChildPrivate(class: *Class, comptime name: [:0]const u8, comptime options: gtk.ext.BindTemplateChildOptions) void {
@@ -469,8 +416,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
-    win.private().filter_dropdown.as(gtk.Widget).setSensitive(1);
-    win.private().load_button.as(gtk.Widget).setSensitive(1);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
@@ -497,8 +442,6 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().randomize_button.as(gtk.Widget).setSensitive(1);
-    win.private().filter_dropdown.as(gtk.Widget).setSensitive(1);
-    win.private().load_button.as(gtk.Widget).setSensitive(1);
 
     return 0;
 }
