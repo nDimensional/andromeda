@@ -17,10 +17,7 @@ const LogScale = @import("LogScale.zig").LogScale;
 const Params = @import("Params.zig");
 
 const Beacon = @import("Beacon.zig");
-
-// const EngineTag = @import("engines/Engine.zig").EngineTag;
-// const Engine = @import("engines/Engine.zig").Engine;
-const Engine = @import("engines/ForceDirected.zig");
+const Engine = @import("engines/ForceAtlas2.zig");
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 const EXECUTABLE_PATH = build_options.atlas_path;
