@@ -10,12 +10,12 @@ const Engine = @This();
 const node_pool_size = 15;
 
 const Stats = struct {
-    energy: f32,
-    min_x: f32,
-    max_x: f32,
-    min_y: f32,
-    max_y: f32,
-    swing: f32,
+    energy: f32 = 0,
+    min_x: f32 = 0,
+    max_x: f32 = 0,
+    min_y: f32 = 0,
+    max_y: f32 = 0,
+    swing: f32 = 0,
 };
 
 allocator: std.mem.Allocator,
@@ -25,11 +25,13 @@ quads: [4]Quadtree,
 node_forces: []Params.Force,
 
 count: u64,
-min_y: f32,
-max_y: f32,
-min_x: f32,
-max_x: f32,
-swing: f32,
+
+stats: Stats,
+// min_y: f32,
+// max_y: f32,
+// min_x: f32,
+// max_x: f32,
+// swing: f32,
 
 params: *const Params,
 
@@ -51,17 +53,13 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     for (self.node_forces) |*f| f.* = .{ 0, 0 };
 
     self.count = 0;
-    self.min_x = 0;
-    self.max_x = 0;
-    self.min_y = 0;
-    self.max_y = 0;
-    self.swing = 0;
+    self.stats = Stats{};
 
     for (graph.positions) |p| {
-        self.min_x = @min(self.min_x, p[0]);
-        self.max_x = @max(self.max_x, p[0]);
-        self.min_y = @min(self.min_y, p[1]);
-        self.max_y = @max(self.max_y, p[1]);
+        self.stats.min_x = @min(self.stats.min_x, p[0]);
+        self.stats.max_x = @max(self.stats.max_x, p[0]);
+        self.stats.min_y = @min(self.stats.min_y, p[1]);
+        self.stats.max_y = @max(self.stats.max_y, p[1]);
     }
 
     return self;
@@ -74,11 +72,17 @@ pub fn deinit(self: *const Engine) void {
 }
 
 pub fn getBoundingSize(self: Engine) !f32 {
-    const s = @max(@abs(self.min_x), @abs(self.max_x), @abs(self.min_y), @abs(self.max_y)) * 2;
+    const max = @max(
+        @abs(self.stats.min_x),
+        @abs(self.stats.max_x),
+        @abs(self.stats.min_y),
+        @abs(self.stats.max_y),
+    );
+    const s = max * 2;
     return std.math.pow(f32, 2, @ceil(@log2(s)));
 }
 
-pub fn tick(self: *Engine) !f32 {
+pub fn tick(self: *Engine) !void {
     std.log.info("tick {d}", .{self.count});
     self.timer.reset();
 
@@ -98,20 +102,15 @@ pub fn tick(self: *Engine) !f32 {
 
     std.log.info("updated node forces in {d}ms", .{self.timer.lap() / 1_000_000});
 
-    var energy: f32 = 0;
-    self.min_x = 0;
-    self.max_x = 0;
-    self.min_y = 0;
-    self.max_y = 0;
-    self.swing = 0;
+    self.stats = Stats{};
 
     for (stats_pool) |stats| {
-        self.min_x = @min(self.min_x, stats.min_x);
-        self.max_x = @max(self.max_x, stats.max_x);
-        self.min_y = @min(self.min_y, stats.min_y);
-        self.max_y = @max(self.max_y, stats.max_y);
-        self.swing += stats.swing;
-        energy += stats.energy;
+        self.stats.min_x = @min(self.stats.min_x, stats.min_x);
+        self.stats.max_x = @max(self.stats.max_x, stats.max_x);
+        self.stats.min_y = @min(self.stats.min_y, stats.min_y);
+        self.stats.max_y = @max(self.stats.max_y, stats.max_y);
+        self.stats.swing += stats.swing;
+        self.stats.energy += stats.energy;
     }
 
     std.log.info("applied forces in {d}ms", .{self.timer.lap() / 1_000_000});
@@ -120,9 +119,7 @@ pub fn tick(self: *Engine) !f32 {
 
     const total: f32 = @floatFromInt(self.graph.node_count);
 
-    std.log.info("energy: {d}", .{energy / total});
-
-    return energy / total;
+    std.log.info("energy: {d}", .{self.stats.energy / total});
 }
 
 fn rebuildTrees(self: *Engine) !void {

@@ -365,13 +365,14 @@ pub const ApplicationWindow = extern struct {
 
     fn tick(win: *ApplicationWindow, engine: *Engine) !void {
         const start = win.private().timer.read();
-        const energy = try engine.tick();
+        try engine.tick();
         const time = win.private().timer.read() - start;
+        const total: f32 = @floatFromInt(engine.graph.node_count);
         win.private().metrics = .{
             .count = engine.count,
-            .energy = energy,
             .time = time / 1_000_000,
-            .swing = engine.swing / @as(f32, @floatFromInt(engine.graph.node_count)),
+            .swing = engine.stats.swing / total,
+            .energy = engine.stats.energy / total,
         };
 
         try win.private().beacon.publish();
