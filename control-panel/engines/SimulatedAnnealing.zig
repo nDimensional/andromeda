@@ -22,8 +22,6 @@ allocator: std.mem.Allocator,
 timer: std.time.Timer,
 graph: *const Graph,
 quads: [4]Quadtree,
-// outgoing_edges: []std.ArrayListUnmanaged(u32),
-// incoming_edges: []std.ArrayListUnmanaged(u32),
 
 cos_table: [table_size]f32,
 sin_table: [table_size]f32,
@@ -47,19 +45,6 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     self.graph = graph;
     self.params = params;
     self.timer = try std.time.Timer.start();
-
-    // self.outgoing_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
-    // self.incoming_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
-
-    // for (self.outgoing_edges) |*edges| edges.* = std.ArrayListUnmanaged(u32){};
-    // for (self.incoming_edges) |*edges| edges.* = std.ArrayListUnmanaged(u32){};
-
-    // for (0..graph.edge_count) |i| {
-    //     const s = graph.source[i] - 1;
-    //     const t = graph.target[i] - 1;
-    //     try self.outgoing_edges[s].append(allocator, t);
-    //     try self.outgoing_edges[t].append(allocator, s);
-    // }
 
     for (0..self.quads.len) |i| {
         const q = @as(u2, @intCast(i));
@@ -97,11 +82,6 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 pub fn deinit(self: *const Engine) void {
     inline for (self.quads) |q| q.deinit();
 
-    // for (self.outgoing_edges) |*edges| edges.deinit(self.allocator);
-    // for (self.incoming_edges) |*edges| edges.deinit(self.allocator);
-    // self.allocator.free(self.outgoing_edges);
-    // self.allocator.free(self.incoming_edges);
-
     self.allocator.destroy(self);
 }
 
@@ -119,22 +99,8 @@ pub fn tick(self: *Engine) !f32 {
 
     self.timer.reset();
 
-    // for (0..self.graph.node_count) |i| {
-    //     sum += try self.updateNode(i);
-    // }
-
-    {
-        const node_count = self.graph.node_count;
-        var pool: [node_pool_size]std.Thread = undefined;
-        const bucket_size = node_count / node_pool_size;
-        for (0..node_pool_size) |p| {
-            const min = p * bucket_size;
-            const max = @max(min + bucket_size, node_count);
-            pool[p] = try std.Thread.spawn(.{}, updateNodeRange, .{ self, min, max, p });
-        }
-
-        for (0..node_pool_size) |i| pool[i].join();
-        for (&energy_pool) |e| sum += e;
+    for (0..self.graph.node_count) |i| {
+        sum += try self.updateNode(i);
     }
 
     std.log.info("updated all nodes in {d}ms", .{self.timer.read() / 1_000_000});
@@ -188,17 +154,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     }
 }
 
-fn updateNodeRange(self: *Engine, min: usize, max: usize, p: usize) !void {
-    var sum: f32 = 0;
-    for (min..max) |i| {
-        sum += try self.updateNode(i);
-    }
-
-    energy_pool[p] = sum;
-}
-
 fn updateNode(self: *Engine, i: usize) !f32 {
-    // const idx: u32 = @intCast(i + 1);
     const a = self.graph.positions[i];
 
     const magnitude = self.random.float(f32) * self.params.temperature;
