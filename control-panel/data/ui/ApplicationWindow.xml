@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
+  <menu id="win-menu">
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">_Open</attribute>
+        <attribute name="action">win.open</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">_Save</attribute>
+        <attribute name="action">win.save</attribute>
+      </item>
+    </section>
+  </menu>
+
   <template class="AndromedaApplicationWindow" parent="GtkApplicationWindow">
     <property name="title" translatable="yes">Andromeda</property>
     <child>
@@ -19,12 +32,14 @@
               <object class="GtkButton" id="open_button">
                 <property name="icon-name">document-open-symbolic</property>
                 <property name="tooltip-text">Open</property>
+                <property name="action-name">win.open</property>
               </object>
             </child>
             <child>
               <object class="GtkButton" id="save_button">
                 <property name="icon-name">document-save-symbolic</property>
                 <property name="tooltip-text">Save</property>
+                <property name="action-name">win.save</property>
               </object>
             </child>
             <child>
@@ -49,6 +64,7 @@
               <object class="GtkButton" id="randomize_button">
                 <property name="icon-name">view-refresh-symbolic</property>
                 <property name="tooltip-text">Randomize</property>
+                <property name="action-name">win.randomize</property>
               </object>
             </child>
             <child>

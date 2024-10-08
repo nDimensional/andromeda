@@ -23,7 +23,7 @@ const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 const EXECUTABLE_PATH = build_options.atlas_path;
 const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
-const Status = enum { Stopped, Starting, Running, Stopping };
+const Status = enum { Initial, Loading, Stopped, Starting, Running, Stopping };
 
 const attraction_scale = 100000;
 const repulsion_scale = 1;
@@ -64,13 +64,10 @@ pub const ApplicationWindow = extern struct {
         center: *LogScale,
         temperature: *LogScale,
 
-        save_button: *gtk.Button,
-        open_button: *gtk.Button,
         tick_button: *gtk.Button,
         start_button: *gtk.Button,
         stop_button: *gtk.Button,
         view_button: *gtk.Button,
-        randomize_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
 
         ticker: *gtk.Label,
@@ -79,6 +76,16 @@ pub const ApplicationWindow = extern struct {
         params: Params,
         metrics: Metrics,
         metrics_timer: u32,
+
+        open_action: *gio.SimpleAction,
+        open_action_id: u64,
+        save_action: *gio.SimpleAction,
+        save_action_id: u64,
+        randomize_action: *gio.SimpleAction,
+        randomize_action_id: u64,
+
+        stop_action: *gio.SimpleAction,
+        start_action: *gio.SimpleAction,
 
         var offset: c_int = 0;
     };
@@ -105,24 +112,52 @@ pub const ApplicationWindow = extern struct {
         win.private().child_process = null;
         win.private().engine_thread = null;
         win.private().store = null;
-        win.private().status = .Stopped;
+        win.private().status = .Initial;
         win.private().stdout = std.io.getStdOut();
         win.private().timer = std.time.Timer.start() catch |err| @panic(@errorName(err));
 
         win.private().beacon = Beacon.init(SOCKET_URL) catch |err| @panic(@errorName(err));
 
-        _ = gtk.Button.signals.clicked.connect(win.private().open_button, *ApplicationWindow, &handleOpenClicked, win, .{});
-        _ = gtk.Button.signals.clicked.connect(win.private().save_button, *ApplicationWindow, &handleSaveClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().stop_button, *ApplicationWindow, &handleStopClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().tick_button, *ApplicationWindow, &handleTickClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().view_button, *ApplicationWindow, &handleViewClicked, win, .{});
-        _ = gtk.Button.signals.clicked.connect(win.private().randomize_button, *ApplicationWindow, &handleRandomizeClicked, win, .{});
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
+
+        const open_action = gio.SimpleAction.new("open", null);
+        gio.ActionMap.addAction(win.as(gio.ActionMap), open_action.as(gio.Action));
+        win.private().open_action = open_action;
+        win.private().open_action_id = gio.SimpleAction.signals.activate.connect(open_action, *ApplicationWindow, &handleOpen, win, .{});
+
+        const save_action = gio.SimpleAction.new("save", null);
+        win.as(gio.ActionMap).addAction(save_action.as(gio.Action));
+        win.private().save_action = save_action;
+        win.private().save_action_id = gio.SimpleAction.signals.activate.connect(save_action, *ApplicationWindow, &handleSave, win, .{});
+
+        save_action.setEnabled(0);
+
+        const randomize_action = gio.SimpleAction.new("randomize", null);
+        win.as(gio.ActionMap).addAction(randomize_action.as(gio.Action));
+        win.private().randomize_action = randomize_action;
+        win.private().randomize_action_id = gio.SimpleAction.signals.activate.connect(randomize_action, *ApplicationWindow, &handleRandomize, win, .{});
+
+        randomize_action.setEnabled(0);
+
+        const start_action = gio.SimpleAction.new("start", null);
+        win.as(gio.ActionMap).addAction(start_action.as(gio.Action));
+        win.private().start_action = start_action;
+        start_action.setEnabled(0);
+
+        const stop_action = gio.SimpleAction.new("stop", null);
+        win.as(gio.ActionMap).addAction(stop_action.as(gio.Action));
+        win.private().stop_action = stop_action;
+        stop_action.setEnabled(0);
+
+        // win.private().save_action_id = gio.SimpleAction.signals.activate.connect(start_action, *ApplicationWindow, &handleSave, win, .{});
 
         win.private().params = initial_params;
 
@@ -131,11 +166,9 @@ pub const ApplicationWindow = extern struct {
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
 
-        win.private().save_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
         win.private().start_button.as(gtk.Widget).setSensitive(0);
-        win.private().randomize_button.as(gtk.Widget).setSensitive(0);
         win.private().view_button.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
@@ -152,6 +185,10 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn dispose(win: *ApplicationWindow) callconv(.C) void {
+        win.private().open_action.unref();
+        win.private().save_action.unref();
+        win.private().randomize_action.unref();
+
         gtk.Widget.disposeTemplate(win.as(gtk.Widget), getGObjectType());
         gobject.Object.virtual_methods.dispose.call(Class.parent.as(gobject.Object.Class), win.as(gobject.Object));
     }
@@ -177,30 +214,6 @@ pub const ApplicationWindow = extern struct {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
     }
 
-    fn handleOpenClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        const chooser = gtk.FileChooserNative.new(
-            intl.gettext("Open graph"),
-            win.as(gtk.Window),
-            .open,
-            intl.gettext("_Open"),
-            intl.gettext("_Cancel"),
-        );
-
-        const filter = gtk.FileFilter.new();
-        gtk.FileFilter.setName(filter, "SQLite");
-        gtk.FileFilter.addPattern(filter, "*.sqlite");
-        gtk.FileChooser.addFilter(chooser.as(gtk.FileChooser), filter);
-
-        _ = gtk.NativeDialog.signals.response.connect(chooser, *ApplicationWindow, &handleOpenResponse, win, .{});
-        gtk.NativeDialog.show(chooser.as(gtk.NativeDialog));
-    }
-
-    fn handleSaveClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        win.log("Saving...", .{});
-        if (win.private().graph) |graph| graph.save() catch |err| @panic(@errorName(err));
-        win.log("Saved.", .{});
-    }
-
     fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         win.log("Stopping...", .{});
         win.private().status = .Stopping;
@@ -222,12 +235,12 @@ pub const ApplicationWindow = extern struct {
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         win.log("Starting...", .{});
 
-        win.private().open_button.as(gtk.Widget).setSensitive(0);
-        win.private().save_button.as(gtk.Widget).setSensitive(0);
+        win.private().open_action.setEnabled(0);
+        win.private().save_action.setEnabled(0);
+        win.private().randomize_action.setEnabled(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
         win.private().start_button.as(gtk.Widget).setSensitive(0);
         win.private().stop_button.as(gtk.Widget).setSensitive(1);
-        win.private().randomize_button.as(gtk.Widget).setSensitive(0);
 
         win.private().status = .Starting;
         win.private().engine_thread = std.Thread.spawn(.{}, loop, .{win}) catch |err| {
@@ -307,6 +320,7 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn openFile(win: *ApplicationWindow, path: [*:0]const u8) !void {
+        win.private().status = .Loading;
         win.private().path = path;
 
         if (win.private().store) |store| {
@@ -327,11 +341,11 @@ pub const ApplicationWindow = extern struct {
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
-        const graph = Graph.init(c_allocator, store, .{
+        const graph = try Graph.init(c_allocator, store, .{
             .progress_bar = win.private().progress_bar,
-        }) catch |err| @panic(@errorName(err));
+        });
 
-        win.private().open_button.as(gtk.Widget).setSensitive(0);
+        win.private().open_action.setEnabled(0);
         win.private().graph = graph;
         graph.load(.{ .callback = &loadResultCallback, .callback_data = win });
     }
@@ -374,13 +388,10 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("ticker", .{});
             class.bindTemplateChildPrivate("energy", .{});
 
-            class.bindTemplateChildPrivate("open_button", .{});
-            class.bindTemplateChildPrivate("save_button", .{});
             class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});
             class.bindTemplateChildPrivate("stop_button", .{});
             class.bindTemplateChildPrivate("view_button", .{});
-            class.bindTemplateChildPrivate("randomize_button", .{});
 
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
@@ -408,14 +419,14 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
     win.log("Finished loading.", .{});
-
-    win.private().open_button.as(gtk.Widget).setSensitive(1);
-    win.private().save_button.as(gtk.Widget).setSensitive(1);
+    win.private().status = .Stopped;
+    win.private().open_action.setEnabled(1);
+    win.private().save_action.setEnabled(1);
+    win.private().randomize_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
     win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
     win.private().view_button.as(gtk.Widget).setSensitive(1);
-    win.private().randomize_button.as(gtk.Widget).setSensitive(1);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
@@ -436,12 +447,12 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
 
     win.private().status = .Stopped;
 
-    win.private().open_button.as(gtk.Widget).setSensitive(1);
-    win.private().save_button.as(gtk.Widget).setSensitive(1);
+    win.private().open_action.setEnabled(1);
+    win.private().save_action.setEnabled(1);
+    win.private().randomize_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
     win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
-    win.private().randomize_button.as(gtk.Widget).setSensitive(1);
 
     return 0;
 }
@@ -462,4 +473,52 @@ fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, env_map: ?*cons
     };
 
     return child_process;
+}
+
+fn handleOpen(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
+    _ = variant;
+
+    const chooser = gtk.FileChooserNative.new(
+        intl.gettext("Open graph"),
+        win.as(gtk.Window),
+        .open,
+        intl.gettext("_Open"),
+        intl.gettext("_Cancel"),
+    );
+
+    const filter = gtk.FileFilter.new();
+    gtk.FileFilter.setName(filter, "SQLite");
+    gtk.FileFilter.addPattern(filter, "*.sqlite");
+    gtk.FileChooser.addFilter(chooser.as(gtk.FileChooser), filter);
+
+    _ = gtk.NativeDialog.signals.response.connect(chooser, *ApplicationWindow, &handleOpenResponse, win, .{});
+    gtk.NativeDialog.show(chooser.as(gtk.NativeDialog));
+}
+
+fn handleSave(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
+    _ = variant;
+
+    win.log("Saving...", .{});
+
+    if (win.private().graph) |graph| graph.save() catch |err| {
+        std.log.err("failed to save graph: {any}", .{err});
+    };
+
+    win.log("Saved.", .{});
+}
+
+fn handleRandomize(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
+    _ = variant;
+
+    win.log("Randomizing...", .{});
+    const graph = win.private().graph orelse return;
+
+    const s = std.math.sqrt(@as(f32, @floatFromInt(graph.node_count)));
+    graph.randomize(s * 100);
+
+    win.private().beacon.publish() catch |err| {
+        std.log.err("error publishing beacon: {any}", .{err});
+    };
+
+    win.log("Randomized.", .{});
 }

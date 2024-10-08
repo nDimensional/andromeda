@@ -19,8 +19,8 @@ pub fn deinit(self: *Beacon) void {
 }
 
 pub fn publish(self: *Beacon) !void {
-    const msg = nng.Message.init(8) catch |err| @panic(@errorName(err));
+    const msg = try nng.Message.init(8);
     std.mem.writeInt(u64, msg.body()[0..8], self.seq, .big);
-    self.socket.send(msg, .{}) catch |err| @panic(@errorName(err));
+    try self.socket.send(msg, .{});
     self.seq += 1;
 }
