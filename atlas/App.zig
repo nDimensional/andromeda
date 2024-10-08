@@ -72,7 +72,7 @@ pub fn init(app: *App) !void {
     app.pipeline = try Pipeline.init(positions);
     app.title_timer = try core.Timer.start();
     app.anchor = null;
-    app.zoom = 0;
+    app.zoom = 512;
 
     const size = core.size();
 
@@ -80,7 +80,7 @@ pub fn init(app: *App) !void {
         .width = @floatFromInt(size.width),
         .height = @floatFromInt(size.height),
         .offset = .{ 0, 0 },
-        .scale = 1,
+        .scale = getScale(app.zoom),
         .min_radius = 16,
         .scale_radius = 1,
         .pixel_ratio = device_pixel_ratio,
