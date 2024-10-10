@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) !void {
 
     const exe = b.addExecutable(.{
         .name = "andromeda",
-        .root_source_file = b.path("./control-panel/main.zig"),
+        .root_source_file = b.path("./src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) !void {
 
     b.installArtifact(exe);
 
-    const control_panel_artifact = b.addRunArtifact(exe);
-    const run_control_panel = b.step("run", "Run the control panel");
-    run_control_panel.dependOn(&control_panel_artifact.step);
+    const run_artifact = b.addRunArtifact(exe);
+    const run_step = b.step("run", "Run the application");
+    run_step.dependOn(&run_artifact.step);
 }
