@@ -91,12 +91,20 @@ pub const Body = packed struct {
         }
     }
 
-    pub fn update(body: *Body, point: @Vector(2, f32), mass: f32) void {
-        const node_mass: @Vector(2, f32) = @splat(body.mass);
+    pub fn add(body: *Body, point: @Vector(2, f32), mass: f32) void {
+        const body_mass: @Vector(2, f32) = @splat(body.mass);
         const point_mass: @Vector(2, f32) = @splat(mass);
-        const total_mass: @Vector(2, f32) = @splat(body.mass + mass);
-        body.center = (body.center * node_mass + point * point_mass) / total_mass;
-        body.mass = body.mass + mass;
+        const total_mass = body_mass + point_mass;
+        body.center = (body.center * body_mass + point * point_mass) / total_mass;
+        body.mass += mass;
+    }
+
+    pub fn remove(body: *Body, point: @Vector(2, f32), mass: f32) void {
+        const total_mass: @Vector(2, f32) = @splat(body.mass);
+        const point_mass: @Vector(2, f32) = @splat(mass);
+        const body_mass = total_mass - point_mass;
+        body.center = (body.center * body_mass - point * point_mass) / total_mass;
+        body.mass -= mass;
     }
 };
 
@@ -147,7 +155,7 @@ fn insertNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32),
         self.tree.items[body].setQuadrant(area.locate(node.center), index);
     }
 
-    self.tree.items[body].update(position, mass);
+    self.tree.items[body].add(position, mass);
 
     const quadrant = area.locate(position);
     const child = self.tree.items[body].getQuadrant(quadrant);
@@ -198,7 +206,7 @@ fn removeNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32),
         self.tree.items[body].setQuadrant(quadrant, Body.NULL);
     }
 
-    self.tree.items[body].update(position, -mass);
+    self.tree.items[body].add(position, -mass);
     if (self.tree.items[body].isEmpty()) {
         if (self.tree.items[body].mass > 0.001) {
             std.log.warn("expected body mass to be 0", .{});

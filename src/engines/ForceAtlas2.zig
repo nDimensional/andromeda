@@ -150,7 +150,6 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
 }
 
 fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
-    // const temperature: Params.Force = @splat(self.params.temperature);
     const temperature = self.params.temperature;
     const center: Params.Force = @splat(self.params.center);
 
@@ -188,7 +187,6 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
         const s_g = temperature;
         const speed = k_s * s_g / (1 + s_g * std.math.sqrt(swing));
 
-        // p += temperature * f;
         p += @as(@Vector(2, f32), @splat(speed * temperature)) * f;
 
         self.graph.positions[i] = p;

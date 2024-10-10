@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="Canvas" parent="GtkWidget">
+    <child>
+      <object class="GtkGLArea" id="area">
+        <property name="hexpand">true</property>
+        <property name="auto-render">false</property>
+      </object>
+    </child>
+  </template>
+</interface>

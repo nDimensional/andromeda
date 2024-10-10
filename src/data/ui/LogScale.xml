@@ -9,6 +9,7 @@
         <child>
           <object class="GtkScale" id="scale">
             <property name="orientation">horizontal</property>
+            <!-- <property name="valign">top</property> -->
             <property name="halign">fill</property>
             <property name="hexpand">true</property>
             <property name="draw-value">true</property>

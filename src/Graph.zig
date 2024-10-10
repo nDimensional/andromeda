@@ -4,7 +4,6 @@ const glib = @import("glib");
 const gio = @import("gio");
 const gtk = @import("gtk");
 const gobject = @import("gobject");
-const sho = @import("shared-object");
 const sqlite = @import("sqlite");
 
 const Store = @import("Store.zig");
@@ -14,7 +13,6 @@ const Progress = @import("Progress.zig");
 pub const Count = struct { count: usize };
 
 const Graph = @This();
-const SHM_NAME = "ANDROMEDA";
 
 pub const Options = struct {
     progress_bar: ?*gtk.ProgressBar = null,
@@ -35,7 +33,6 @@ incoming_edges: []std.ArrayListUnmanaged(u32),
 z: []f32,
 
 positions: []@Vector(2, f32),
-writer: sho.Writer(SHM_NAME),
 
 pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Graph {
     const graph = try allocator.create(Graph);
@@ -55,11 +52,8 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     for (graph.outgoing_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
     for (graph.incoming_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
 
-    const writer_size = @sizeOf(@Vector(2, f32)) * graph.node_count;
-    graph.writer = try sho.Writer(SHM_NAME).init(writer_size);
-
-    const positions_ptr: [*]@Vector(2, f32) = @alignCast(@ptrCast(graph.writer.data.ptr));
-    graph.positions = positions_ptr[0..graph.node_count];
+    graph.positions = try allocator.alloc(@Vector(2, f32), graph.node_count);
+    for (graph.positions) |*p| p.* = .{ 0, 0 };
 
     graph.z = try allocator.alloc(f32, graph.node_count);
     for (graph.z) |*z| z.* = 0;
@@ -69,6 +63,7 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
 
 pub fn deinit(self: *const Graph) void {
     self.allocator.free(self.z);
+    self.allocator.free(self.positions);
 
     for (self.outgoing_edges) |*list| list.deinit(self.allocator);
     for (self.incoming_edges) |*list| list.deinit(self.allocator);
@@ -76,7 +71,6 @@ pub fn deinit(self: *const Graph) void {
     self.allocator.free(self.outgoing_edges);
     self.allocator.free(self.incoming_edges);
 
-    self.writer.deinit();
     self.allocator.destroy(self);
 }
 

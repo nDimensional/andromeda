@@ -2,8 +2,11 @@ const std = @import("std");
 const glib = @import("glib");
 const gobject = @import("gobject");
 const gio = @import("gio");
+const gdk = @import("gdk");
 const gtk = @import("gtk");
 const intl = @import("libintl");
+
+const gl = @import("gl");
 
 const build_options = @import("build_options");
 
@@ -14,14 +17,12 @@ const Store = @import("Store.zig");
 const Graph = @import("Graph.zig");
 
 const LogScale = @import("LogScale.zig").LogScale;
+const Canvas = @import("Canvas.zig").Canvas;
 const Params = @import("Params.zig");
 
-const Beacon = @import("Beacon.zig");
 const Engine = @import("engines/ForceAtlas2.zig");
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
-const EXECUTABLE_PATH = build_options.atlas_path;
-const SOCKET_URL = "ipc://" ++ build_options.socket_path;
 
 const Status = enum { Initial, Loading, Stopped, Starting, Running, Stopping };
 
@@ -50,9 +51,9 @@ pub const ApplicationWindow = extern struct {
         path: ?[*:0]const u8,
         store: ?*Store,
         graph: ?*Graph,
-        child_process: ?*std.process.Child,
+        dirty: bool,
+
         engine_thread: ?std.Thread,
-        beacon: Beacon,
         status: Status = .Stopped,
         stdout: std.fs.File,
         timer: std.time.Timer,
@@ -67,15 +68,17 @@ pub const ApplicationWindow = extern struct {
         tick_button: *gtk.Button,
         start_button: *gtk.Button,
         stop_button: *gtk.Button,
-        view_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
 
+        canvas: *Canvas,
+
         params: Params,
         metrics: Metrics,
-        metrics_timer: u32,
+        metrics_source_id: u32,
+        render_source_id: u32,
 
         open_action: *gio.SimpleAction,
         open_action_id: u64,
@@ -109,19 +112,16 @@ pub const ApplicationWindow = extern struct {
     fn init(win: *ApplicationWindow, _: *Class) callconv(.C) void {
         gtk.Widget.initTemplate(win.as(gtk.Widget));
 
-        win.private().child_process = null;
         win.private().engine_thread = null;
         win.private().store = null;
         win.private().status = .Initial;
         win.private().stdout = std.io.getStdOut();
         win.private().timer = std.time.Timer.start() catch |err| @panic(@errorName(err));
-
-        win.private().beacon = Beacon.init(SOCKET_URL) catch |err| @panic(@errorName(err));
+        win.private().dirty = false;
 
         _ = gtk.Button.signals.clicked.connect(win.private().stop_button, *ApplicationWindow, &handleStopClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().tick_button, *ApplicationWindow, &handleTickClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
-        _ = gtk.Button.signals.clicked.connect(win.private().view_button, *ApplicationWindow, &handleViewClicked, win, .{});
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
@@ -157,8 +157,6 @@ pub const ApplicationWindow = extern struct {
         win.private().stop_action = stop_action;
         stop_action.setEnabled(0);
 
-        // win.private().save_action_id = gio.SimpleAction.signals.activate.connect(start_action, *ApplicationWindow, &handleSave, win, .{});
-
         win.private().params = initial_params;
 
         win.private().attraction.setValue(initial_params.attraction * attraction_scale);
@@ -169,7 +167,6 @@ pub const ApplicationWindow = extern struct {
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
         win.private().start_button.as(gtk.Widget).setSensitive(0);
-        win.private().view_button.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
@@ -178,7 +175,8 @@ pub const ApplicationWindow = extern struct {
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
-        win.private().metrics_timer = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
+        win.private().render_source_id = 0;
+        win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
         win.private().metrics.count = 0;
         win.private().metrics.energy = 0;
         win.private().metrics.time = 0;
@@ -194,16 +192,6 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn finalize(win: *ApplicationWindow) callconv(.C) void {
-        const ctx = glib.MainContext.default();
-        const source = ctx.findSourceById(win.private().metrics_timer);
-        source.destroy();
-
-        if (win.private().child_process) |child_process| {
-            const status = child_process.kill() catch |e| @panic(@errorName(e));
-            std.log.warn("terminated child process {any}", .{status});
-        }
-
-        win.private().beacon.deinit();
         if (win.private().graph) |graph| graph.deinit();
         if (win.private().store) |store| store.deinit();
 
@@ -219,6 +207,10 @@ pub const ApplicationWindow = extern struct {
         win.private().status = .Stopping;
         win.private().stop_button.as(gtk.Widget).setSensitive(0);
         if (win.private().engine_thread) |engine_thread| engine_thread.detach();
+
+        const ctx = glib.MainContext.default();
+        ctx.findSourceById(win.private().render_source_id).destroy();
+        ctx.findSourceById(win.private().metrics_source_id).destroy();
     }
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
@@ -230,6 +222,8 @@ pub const ApplicationWindow = extern struct {
 
         win.tick(engine) catch |err| @panic(@errorName(err));
         win.updateMetrics() catch |err| @panic(@errorName(err));
+
+        win.private().canvas.update(graph.positions);
     }
 
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
@@ -247,24 +241,9 @@ pub const ApplicationWindow = extern struct {
             std.log.err("failed to spawn engine thread: {s}", .{@errorName(err)});
             return;
         };
-    }
 
-    fn handleViewClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        win.log("Opening atlas", .{});
-
-        win.private().child_process = spawn(c_allocator, &.{EXECUTABLE_PATH}, null);
-        win.private().view_button.as(gtk.Widget).setSensitive(0);
-    }
-
-    fn handleRandomizeClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        win.log("Randomizing...", .{});
-        const graph = win.private().graph orelse return;
-
-        const s = std.math.sqrt(@as(f32, @floatFromInt(graph.node_count)));
-        graph.randomize(s * 100);
-
-        win.private().beacon.publish() catch |err| @panic(@errorName(err));
-        win.log("Randomized.", .{});
+        win.private().render_source_id = glib.idleAdd(&handleRender, win);
+        win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -316,7 +295,7 @@ pub const ApplicationWindow = extern struct {
             .energy = engine.stats.energy / total,
         };
 
-        try win.private().beacon.publish();
+        win.private().dirty = true;
     }
 
     fn openFile(win: *ApplicationWindow, path: [*:0]const u8) !void {
@@ -391,12 +370,14 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});
             class.bindTemplateChildPrivate("stop_button", .{});
-            class.bindTemplateChildPrivate("view_button", .{});
+            // class.bindTemplateChildPrivate("view_button", .{});
 
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
+
+            class.bindTemplateChildPrivate("canvas", .{});
         }
 
         fn bindTemplateChildPrivate(class: *Class, comptime name: [:0]const u8, comptime options: gtk.ext.BindTemplateChildOptions) void {
@@ -418,6 +399,9 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
+    const graph = win.private().graph orelse return;
+    win.private().canvas.load(graph.positions);
+
     win.log("Finished loading.", .{});
     win.private().status = .Stopped;
     win.private().open_action.setEnabled(1);
@@ -426,7 +410,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
     win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().stop_button.as(gtk.Widget).setSensitive(0);
-    win.private().view_button.as(gtk.Widget).setSensitive(1);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
@@ -457,22 +440,21 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     return 0;
 }
 
-fn spawn(allocator: std.mem.Allocator, argv: []const []const u8, env_map: ?*const std.process.EnvMap) ?*std.process.Child {
-    const child_process = allocator.create(std.process.Child) catch |err| {
-        std.log.err("failed to create child process: {s}", .{@errorName(err)});
-        return null;
-    };
+fn handleRender(user_data: ?*anyopaque) callconv(.C) c_int {
+    const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
 
-    child_process.* = std.process.Child.init(argv, allocator);
-    child_process.env_map = env_map;
+    if (win.private().graph) |graph| {
+        if (win.private().dirty) {
+            win.private().dirty = false;
+            win.private().canvas.update(graph.positions);
+        }
+    }
 
-    child_process.spawn() catch |err| {
-        std.log.err("failed to spawn child process: {s}", .{@errorName(err)});
-        allocator.destroy(child_process);
-        return null;
-    };
-
-    return child_process;
+    if (win.private().status == .Running) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 fn handleOpen(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
@@ -515,10 +497,6 @@ fn handleRandomize(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *Applicat
 
     const s = std.math.sqrt(@as(f32, @floatFromInt(graph.node_count)));
     graph.randomize(s * 100);
-
-    win.private().beacon.publish() catch |err| {
-        std.log.err("error publishing beacon: {any}", .{err});
-    };
-
+    win.private().canvas.update(graph.positions);
     win.log("Randomized.", .{});
 }

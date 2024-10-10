@@ -4,7 +4,6 @@ const glib = @import("glib");
 const gobject = @import("gobject");
 const gio = @import("gio");
 const gtk = @import("gtk");
-const nng = @import("nng");
 
 const build_options = @import("build_options");
 
@@ -12,8 +11,6 @@ const ApplicationWindow = @import("ApplicationWindow.zig").ApplicationWindow;
 
 const application_id = "xyz.ndimensional.andromeda";
 pub fn main() void {
-    nng.setLogger(.SYSTEM);
-
     const app = gtk.Application.new(application_id, .{});
     defer app.unref();
 
