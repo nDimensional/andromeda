@@ -21,6 +21,7 @@ const Data = struct {
     vao: c.GLuint = 0,
     vbo: c.GLuint = 0,
     positions: c.GLuint = 0,
+    sizes: c.GLuint = 0,
     resolution_location: c.GLint = 0,
     offset_location: c.GLint = 0,
     scale_location: c.GLint = 0,
@@ -116,16 +117,23 @@ pub const Canvas = extern struct {
         return gobject.ext.impl_helpers.getPrivate(ls, Private, Private.offset);
     }
 
-    pub fn load(self: *Canvas, positions: []const @Vector(2, f32)) void {
+    pub fn load(self: *Canvas, sizes: []const f32, positions: []const @Vector(2, f32)) void {
         const area = self.private().area;
         const data = self.private().data orelse return;
         data.count = @intCast(positions.len);
+
+        if (data.count != sizes.len) {
+            std.log.warn("expected data.count == sizes.len ({d} != {d})", .{ data.count, sizes.len });
+        }
 
         area.makeCurrent();
         if (area.getError()) |err| {
             std.log.err("error rendering GLArea: {any}", .{err});
             return;
         }
+
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, data.sizes);
+        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(f32) * sizes.len), sizes.ptr, c.GL_DYNAMIC_DRAW);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
         c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(@Vector(2, f32)) * positions.len), positions.ptr, c.GL_DYNAMIC_DRAW);
@@ -189,11 +197,6 @@ const vertices: []const f32 = &.{
     // zig fmt: on
 };
 
-const example_positions: []const @Vector(2, f32) = &.{
-    .{100, 100},
-    .{-100, -100},
-};
-
 fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     std.log.info("handleRealize", .{});
 
@@ -216,28 +219,33 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     var vao: c.GLuint = undefined;
     var vbo: c.GLuint = undefined;
     var positions: c.GLuint = undefined;
+    var sizes: c.GLuint = undefined;
 
     // Create VAO and VBO
     c.glGenVertexArrays(1, &vao);
     c.glGenBuffers(1, &vbo);
     c.glGenBuffers(1, &positions);
+    c.glGenBuffers(1, &sizes);
 
     c.glBindVertexArray(vao);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo);
     c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, vertices.ptr, c.GL_STATIC_DRAW);
 
-    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 2 * @sizeOf(f32), null);
+    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, @sizeOf(@Vector(2, f32)), null);
     c.glEnableVertexAttribArray(0);
 
-    // ...
     c.glBindBuffer(c.GL_ARRAY_BUFFER, positions);
     c.glBufferData(c.GL_ARRAY_BUFFER, 0, null, c.GL_DYNAMIC_DRAW);
-
-    c.glVertexAttribPointer(1, 2, c.GL_FLOAT, c.GL_FALSE, 2 * @sizeOf(f32), null);
+    c.glVertexAttribPointer(1, 2, c.GL_FLOAT, c.GL_FALSE, @sizeOf(@Vector(2, f32)), null);
     c.glEnableVertexAttribArray(1);
     c.glVertexAttribDivisor(1, 1);
-    // ...
+
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, sizes);
+    c.glBufferData(c.GL_ARRAY_BUFFER, 0, null, c.GL_DYNAMIC_DRAW);
+    c.glVertexAttribPointer(2, 1, c.GL_FLOAT, c.GL_FALSE, @sizeOf(f32), null);
+    c.glEnableVertexAttribArray(2);
+    c.glVertexAttribDivisor(2, 1);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
     c.glBindVertexArray(0);
@@ -250,6 +258,7 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     data.vao = vao;
     data.vbo = vbo;
     data.positions = positions;
+    data.sizes = sizes;
     data.resolution_location = resolution_location;
     data.offset_location = offset_location;
     data.scale_location = scale_location;
@@ -275,13 +284,12 @@ fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     c.glDeleteVertexArrays(1, &data.vao);
     c.glDeleteBuffers(1, &data.vbo);
     c.glDeleteBuffers(1, &data.positions);
+    c.glDeleteBuffers(1, &data.sizes);
     c.glDeleteProgram(data.shader_program);
 }
 
 fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C) c_int {
     _ = ctx;
-
-    std.log.info("handleRender offset: ({d}, {d}) {d}", .{data.offset[0], data.offset[1], data.scale});
 
     const width = gtk.Widget.getWidth(area.as(gtk.Widget));
     const height = gtk.Widget.getHeight(area.as(gtk.Widget));
@@ -290,8 +298,6 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
 
     c.glClearColor(1.0, 1.0, 1.0, 1.0);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
-
-    updatePositions(data);
 
     // Use the shader program
     c.glUseProgram(data.shader_program);
@@ -317,16 +323,11 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     return 1;
 }
 
-fn updatePositions(data: *Data) void {
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
-    c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(f32) * 2 * example_positions.len, example_positions.ptr);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
-}
-
 const vertex_shader_source =
     \\ #version 410 core
     \\ layout (location = 0) in vec2 aPos;
     \\ layout (location = 1) in vec2 aOffset;
+    \\ layout (location = 2) in float aDegree;
     \\ uniform vec2 uResolution;
     \\ uniform vec2 uOffset;
     \\ uniform float uScale;
@@ -337,7 +338,7 @@ const vertex_shader_source =
     \\     vec2 vPos = (aPos * vec2(100.0) + uOffset + aOffset) * vec2(uScale) / uResolution;
     \\     gl_Position = vec4(vPos, 0.0, 1.0);
     \\     vCenter = (uResolution * uDevicePixelRatio / 2) + (uOffset + aOffset) * uScale;
-    \\     vRadius = uScale * 100.0;
+    \\     vRadius = max(2, uScale * (20 + sqrt(aDegree)));
     \\ }
 ;
 
