@@ -25,13 +25,15 @@ const Data = struct {
     resolution_location: c.GLint = 0,
     offset_location: c.GLint = 0,
     scale_location: c.GLint = 0,
+    scale_radius_location: c.GLint = 0,
     device_pixel_ratio_location: c.GLint = 0,
     offset: @Vector(2, f32) = .{ 0, 0 },
     anchor: @Vector(2, f32) = .{ 0, 0 },
     cursor: @Vector(2, f32) = .{ 0, 0 },
+    count: u32 = 0,
     zoom: f32 = 0,
     scale: f32 = 1,
-    count: u32 = 0,
+    scale_radius: f32 = 1,
 };
 
 pub const Canvas = extern struct {
@@ -214,6 +216,7 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     const resolution_location = c.glGetUniformLocation(shader_program, "uResolution");
     const offset_location = c.glGetUniformLocation(shader_program, "uOffset");
     const scale_location = c.glGetUniformLocation(shader_program, "uScale");
+    const scale_radius_location = c.glGetUniformLocation(shader_program, "uScaleRadius");
     const device_pixel_ratio_location = c.glGetUniformLocation(shader_program, "uDevicePixelRatio");
 
     var vao: c.GLuint = undefined;
@@ -262,13 +265,15 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     data.resolution_location = resolution_location;
     data.offset_location = offset_location;
     data.scale_location = scale_location;
+    data.scale_radius_location = scale_radius_location;
     data.device_pixel_ratio_location = device_pixel_ratio_location;
     data.offset = .{ 0, 0};
     data.anchor = .{ 0, 0};
     data.cursor = .{ 0, 0};
+    data.count = 0;
     data.zoom = 512;
     data.scale = getScale(data.zoom);
-    data.count = 0;
+    data.scale_radius = getScaleRadius(data.scale);
 }
 
 fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
@@ -305,6 +310,7 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     c.glUniform2f(data.resolution_location, @floatFromInt(width), @floatFromInt(height));
     c.glUniform2f(data.offset_location, data.offset[0], data.offset[1]);
     c.glUniform1f(data.scale_location, data.scale);
+    c.glUniform1f(data.scale_radius_location, data.scale_radius);
     c.glUniform1f(data.device_pixel_ratio_location, device_pixel_ratio);
 
     // Bind the VAO
@@ -331,6 +337,7 @@ const vertex_shader_source =
     \\ uniform vec2 uResolution;
     \\ uniform vec2 uOffset;
     \\ uniform float uScale;
+    \\ uniform float uScaleRadius;
     \\ uniform float uDevicePixelRatio;
     \\ out vec2 vCenter;
     \\ out float vRadius;
@@ -338,7 +345,7 @@ const vertex_shader_source =
     \\     vec2 vPos = (aPos * vec2(100.0) + uOffset + aOffset) * vec2(uScale) / uResolution;
     \\     gl_Position = vec4(vPos, 0.0, 1.0);
     \\     vCenter = (uResolution * uDevicePixelRatio / 2) + (uOffset + aOffset) * uScale;
-    \\     vRadius = max(2, uScale * (20 + sqrt(aDegree)));
+    \\     vRadius = max(2, uScale * (10 + sqrt(aDegree)) / uScaleRadius);
     \\ }
 ;
 
@@ -413,6 +420,7 @@ fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, d
     zoom = @max(MIN_ZOOM, zoom);
     data.zoom = @floatCast(zoom);
     data.scale = getScale(data.zoom);
+    data.scale_radius = getScaleRadius(data.scale);
 
     const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
     area.queueRender();
@@ -432,6 +440,10 @@ fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) v
     _ = scale;
 }
 
-fn getScale(zoom: f32) f32 {
+inline fn getScale(zoom: f32) f32 {
     return 256 / ((std.math.pow(f32, zoom + 1, 2) - 1) / 256 + 256);
+}
+
+inline fn getScaleRadius(scale: f32) f32 {
+    return std.math.sqrt(std.math.sqrt(scale));
 }
