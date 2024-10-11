@@ -206,13 +206,12 @@
                         <property name="margin-bottom">10</property>
                         <child>
                           <object class="GtkLabel" id="ticker">
-                            <!-- <property name="halign">start</property> -->
+                            <property name="halign">start</property>
                           </object>
                         </child>
                         <child>
                           <object class="GtkLabel" id="energy">
-                            <!-- <property name="hexpand">true</property> -->
-                            <!-- <property name="halign">end</property> -->
+                            <property name="halign">start</property>
                           </object>
                         </child>
                       </object>
