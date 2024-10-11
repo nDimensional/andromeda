@@ -450,11 +450,13 @@ fn handleRender(user_data: ?*anyopaque) callconv(.C) c_int {
         }
     }
 
-    if (win.private().status == .Running) {
-        return 1;
-    } else {
-        return 0;
-    }
+    return 1;
+
+    // if (win.private().status == .Running) {
+    //     return 1;
+    // } else {
+    //     return 0;
+    // }
 }
 
 fn handleOpen(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {

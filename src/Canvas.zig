@@ -12,11 +12,11 @@ const allocator = std.heap.c_allocator;
 const device_pixel_ratio = if (builtin.os.tag.isDarwin()) 2 else 1;
 
 const initial_positions: []const @Vector(2, f32) = &.{
-    .{ 0, 0 },
+    // .{ 0, 0 },
 };
 
 const initial_sizes: []const f32 = &.{
-    1,
+    // 1,
 };
 
 comptime {

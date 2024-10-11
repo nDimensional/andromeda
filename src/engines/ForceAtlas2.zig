@@ -7,8 +7,6 @@ const Params = @import("../Params.zig");
 
 const Engine = @This();
 
-const node_pool_size = 15;
-
 const Stats = struct {
     energy: f32 = 0,
     min_x: f32 = 0,
@@ -18,11 +16,17 @@ const Stats = struct {
     swing: f32 = 0,
 };
 
+const free_threads = 2;
+
 allocator: std.mem.Allocator,
 timer: std.time.Timer,
 graph: *const Graph,
 quads: [4]Quadtree,
 node_forces: []Params.Force,
+
+pool_size: usize,
+thread_pool: []std.Thread,
+stats_pool: []Stats,
 
 count: u64,
 
@@ -43,6 +47,11 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     self.graph = graph;
     self.params = params;
     self.timer = try std.time.Timer.start();
+
+    const cpu_count = try std.Thread.getCpuCount();
+    self.pool_size = @max(1 + free_threads, cpu_count) - free_threads;
+    self.thread_pool = try allocator.alloc(std.Thread, self.pool_size);
+    self.stats_pool = try allocator.alloc(Stats, self.pool_size);
 
     for (0..self.quads.len) |i| {
         const q = @as(u2, @intCast(i));
@@ -68,6 +77,8 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 pub fn deinit(self: *const Engine) void {
     inline for (self.quads) |q| q.deinit();
     self.allocator.free(self.node_forces);
+    self.allocator.free(self.thread_pool);
+    self.allocator.free(self.stats_pool);
     self.allocator.destroy(self);
 }
 
@@ -88,23 +99,20 @@ pub fn tick(self: *Engine) !void {
 
     try self.rebuildTrees();
 
-    var stats_pool: [node_pool_size]Stats = undefined;
-
     const node_count = self.graph.node_count;
-    var pool: [node_pool_size]std.Thread = undefined;
-    for (0..node_pool_size) |pool_i| {
-        const min = pool_i * node_count / node_pool_size;
-        const max = (pool_i + 1) * node_count / node_pool_size;
-        pool[pool_i] = try std.Thread.spawn(.{}, updateNodes, .{ self, min, max, &stats_pool[pool_i] });
+    for (0..self.pool_size) |pool_i| {
+        const min = pool_i * node_count / self.pool_size;
+        const max = (pool_i + 1) * node_count / self.pool_size;
+        self.thread_pool[pool_i] = try std.Thread.spawn(.{}, updateNodes, .{ self, min, max, &self.stats_pool[pool_i] });
     }
 
-    for (0..node_pool_size) |i| pool[i].join();
+    for (0..self.pool_size) |i| self.thread_pool[i].join();
 
     std.log.info("updated node forces in {d}ms", .{self.timer.lap() / 1_000_000});
 
     self.stats = Stats{};
 
-    for (stats_pool) |stats| {
+    for (self.stats_pool) |stats| {
         self.stats.min_x = @min(self.stats.min_x, stats.min_x);
         self.stats.max_x = @max(self.stats.max_x, stats.max_x);
         self.stats.min_y = @min(self.stats.min_y, stats.min_y);
