@@ -2,8 +2,8 @@
 precision mediump float; // GLSL ES requires precision specifiers
 precision mediump int;
 
-in vec2 aOffset;
 in vec2 aPos;
+in vec2 aOffset;
 in float aDegree;
 
 uniform vec2 uResolution;
@@ -16,8 +16,8 @@ out float vRadius;
 
 void main() {
     vec2 c = (uOffset + aOffset) * uScale;
-    // vec2 v = aPos * vec2(100.0) * uScale + c;
-    vec2 v = aPos * vec2(100.0);
+    vec2 v = aPos * vec2(100.0) * uScale + c;
+    // vec2 v = aPos * vec2(100.0);
     gl_Position = vec4(v / uResolution, 0.0, 1.0);
     // gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
 

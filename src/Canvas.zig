@@ -200,17 +200,25 @@ pub const Canvas = extern struct {
     };
 };
 
+// const vertices: []const @Vector(2, f32) = &.{
+//     .{ -1.0, -1.0 },
+//     .{ 1.0, -1.0 },
+//     .{ 1.0, 1.0 },
+//     .{ -1.0, 1.0 },
+// };
 const vertices: []const @Vector(2, f32) = &.{
-    .{ -1.0, -1.0 },
-    .{ 1.0, -1.0 },
-    .{ 1.0, 1.0 },
-    .{ -1.0, 1.0 },
+    .{ -0.5, -0.5 },
+    .{ 0.5, -0.5 },
+    .{ 0.5, 0.5 },
+    .{ -0.5, 0.5 },
 };
 
 fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     std.log.info("handleRealize", .{});
 
     area.setAutoRender(0);
+    const scale_factor = area.as(gtk.Widget).getScaleFactor();
+    std.log.info("scale_factor: {d}", .{scale_factor});
 
     gtk.GLArea.makeCurrent(area);
     if (area.getError()) |err| {
@@ -269,6 +277,8 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
 
     c.glEnable(c.GL_DEBUG_OUTPUT);
     c.glDebugMessageCallback(&handleDebugMessage, null);
+
+    c.glDisable(c.GL_DEPTH_TEST);
 
     data.shader_program = shader_program;
     data.vao = vao;
@@ -342,14 +352,16 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     _ = ctx;
 
     std.log.info("rendering ({d})", .{data.count});
+    const scale_factor = area.as(gtk.Widget).getScaleFactor();
 
     const width = gtk.Widget.getWidth(area.as(gtk.Widget));
     const height = gtk.Widget.getHeight(area.as(gtk.Widget));
 
-    c.glViewport(0, 0, width * device_pixel_ratio, height * device_pixel_ratio);
+    std.log.info("width: {d}, height: {d}", .{ width, height });
+
+    c.glViewport(0, 0, width * scale_factor, height * scale_factor);
 
     c.glClearColor(1.0, 1.0, 1.0, 1.0);
-    // c.glClearColor(0.0, 1.0, 0.3, 1.0);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
 
     // Use the shader program
@@ -358,7 +370,7 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     c.glUniform2f(data.resolution_location, @floatFromInt(width), @floatFromInt(height));
     c.glUniform2f(data.offset_location, data.offset[0], data.offset[1]);
     c.glUniform1f(data.scale_location, data.scale);
-    c.glUniform1f(data.device_pixel_ratio_location, device_pixel_ratio);
+    c.glUniform1f(data.device_pixel_ratio_location, @floatFromInt(scale_factor));
 
     // Bind the VAO
     c.glBindVertexArray(data.vao);
@@ -378,39 +390,6 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
 
 const vertex_shader_source = @embedFile("shaders/node.vert");
 const fragment_shader_source = @embedFile("shaders/node.frag");
-
-// const vertex_shader_source =
-//     // \\ #version 410 core
-//     \\ layout (location = 1) in vec2 aOffset;
-//     \\ layout (location = 0) in vec2 aPos;
-//     \\ layout (location = 2) in float aDegree;
-//     \\ uniform vec2 uResolution;
-//     \\ uniform vec2 uOffset;
-//     \\ uniform float uScale;
-//     \\ uniform float uDevicePixelRatio;
-//     \\ out vec2 vCenter;
-//     \\ out float vRadius;
-//     \\ void main() {
-//     \\     vec2 vPos = (aPos * vec2(100.0) + uOffset + aOffset) * vec2(uScale) / uResolution;
-//     \\     gl_Position = vec4(vPos, 0.0, 1.0);
-//     \\     vCenter = (uResolution * uDevicePixelRatio / 2) + (uOffset + aOffset) * uScale;
-//     \\     vRadius = max(2, uScale * (20 + sqrt(aDegree)));
-//     \\ }
-// ;
-
-// const fragment_shader_source =
-//     // \\ #version 410 core
-//     \\ in vec2 vCenter;
-//     \\ in float vRadius;
-//     \\ out vec4 FragColor;
-//     \\ uniform vec2 uResolution;
-//     \\ void main() {
-//     \\     vec2 pixelPos = gl_FragCoord.xy;
-//     \\     float dist = distance(pixelPos, vCenter);
-//     \\     float alpha = 1.0 - smoothstep(vRadius - 2.0, vRadius, dist);
-//     \\     FragColor = vec4(0.0, 0.0, 0.0, alpha);
-//     \\ }
-// ;
 
 var info_log_len: i32 = 0;
 var info_log_buffer: [4096]u8 = undefined;
@@ -489,7 +468,7 @@ fn handleMouseDrag(gesture: *gtk.GestureDrag, offset_x: f64, offset_y: f64, data
 fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, data: *Data) callconv(.C) c_int {
     std.log.info("handleMouseScroll: ({d}, {d})", .{ dx, dy });
 
-    var zoom = data.zoom + (dy);
+    var zoom = data.zoom + 8 * dy;
     zoom = @min(MAX_ZOOM, zoom);
     zoom = @max(MIN_ZOOM, zoom);
     data.zoom = @floatCast(zoom);
