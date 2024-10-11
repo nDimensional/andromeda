@@ -11,6 +11,18 @@ const allocator = std.heap.c_allocator;
 
 const device_pixel_ratio = if (builtin.os.tag.isDarwin()) 2 else 1;
 
+const initial_positions: []const @Vector(2, f32) = &.{
+    .{ 0, 0 },
+};
+
+const initial_sizes: []const f32 = &.{
+    1,
+};
+
+comptime {
+    std.debug.assert(initial_positions.len == initial_sizes.len);
+}
+
 const TEMPLATE = @embedFile("./data/ui/Canvas.xml");
 
 const MAX_ZOOM = 8192;
@@ -188,13 +200,11 @@ pub const Canvas = extern struct {
     };
 };
 
-const vertices: []const f32 = &.{
-    // zig fmt: off
-    -1.0, -1.0,
-     1.0, -1.0,
-     1.0,  1.0,
-    -1.0,  1.0,
-    // zig fmt: on
+const vertices: []const @Vector(2, f32) = &.{
+    .{ -1.0, -1.0 },
+    .{ 1.0, -1.0 },
+    .{ 1.0, 1.0 },
+    .{ -1.0, 1.0 },
 };
 
 fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
@@ -208,6 +218,7 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
         return;
     }
 
+    // if (area.getContext()) |ctx| ctx.setRequiredVersion(4, 1);
     std.log.info("OpenGL version: {d}", .{c.epoxy_gl_version()});
 
     const shader_program = createShaderProgram();
@@ -230,19 +241,21 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     c.glBindVertexArray(vao);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, vertices.ptr, c.GL_STATIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(@Vector(2, f32)) * vertices.len, vertices.ptr, c.GL_STATIC_DRAW);
 
     c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, @sizeOf(@Vector(2, f32)), null);
     c.glEnableVertexAttribArray(0);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, positions);
-    c.glBufferData(c.GL_ARRAY_BUFFER, 0, null, c.GL_DYNAMIC_DRAW);
+    // c.glBufferData(c.GL_ARRAY_BUFFER, 0, null, c.GL_DYNAMIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, initial_positions.len, initial_positions.ptr, c.GL_DYNAMIC_DRAW);
     c.glVertexAttribPointer(1, 2, c.GL_FLOAT, c.GL_FALSE, @sizeOf(@Vector(2, f32)), null);
     c.glEnableVertexAttribArray(1);
     c.glVertexAttribDivisor(1, 1);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, sizes);
-    c.glBufferData(c.GL_ARRAY_BUFFER, 0, null, c.GL_DYNAMIC_DRAW);
+    // c.glBufferData(c.GL_ARRAY_BUFFER, 0, null, c.GL_DYNAMIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, initial_sizes.len, initial_sizes.ptr, c.GL_DYNAMIC_DRAW);
     c.glVertexAttribPointer(2, 1, c.GL_FLOAT, c.GL_FALSE, @sizeOf(f32), null);
     c.glEnableVertexAttribArray(2);
     c.glVertexAttribDivisor(2, 1);
@@ -254,6 +267,9 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     c.glEnable(c.GL_BLEND);
     c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
+    c.glEnable(c.GL_DEBUG_OUTPUT);
+    c.glDebugMessageCallback(&handleDebugMessage, null);
+
     data.shader_program = shader_program;
     data.vao = vao;
     data.vbo = vbo;
@@ -263,12 +279,46 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     data.offset_location = offset_location;
     data.scale_location = scale_location;
     data.device_pixel_ratio_location = device_pixel_ratio_location;
-    data.offset = .{ 0, 0};
-    data.anchor = .{ 0, 0};
-    data.cursor = .{ 0, 0};
+    data.offset = .{ 0, 0 };
+    data.anchor = .{ 0, 0 };
+    data.cursor = .{ 0, 0 };
     data.zoom = 512;
     data.scale = getScale(data.zoom);
-    data.count = 0;
+    data.count = initial_positions.len;
+}
+
+const Severity = enum {
+    HIGH,
+    MEDIUM,
+    LOW,
+    NOTIFICATION,
+    UNKNOWN,
+
+    pub fn parse(severity: c.GLenum) Severity {
+        if (severity == c.GL_DEBUG_SEVERITY_HIGH) return .HIGH;
+        if (severity == c.GL_DEBUG_SEVERITY_MEDIUM) return .MEDIUM;
+        if (severity == c.GL_DEBUG_SEVERITY_LOW) return .LOW;
+        if (severity == c.GL_DEBUG_SEVERITY_NOTIFICATION) return .NOTIFICATION;
+        return .UNKNOWN;
+    }
+};
+
+fn handleDebugMessage(
+    source: c.GLenum,
+    t: c.GLenum,
+    id: c.GLuint,
+    severity: c.GLenum,
+    length: c.GLsizei,
+    message: ?[*:0]const u8,
+    user_data: ?*const anyopaque,
+) callconv(.C) void {
+    _ = source;
+    _ = t;
+    _ = id;
+    _ = length;
+    _ = user_data;
+
+    std.log.info("{s}: {s}", .{ @tagName(Severity.parse(severity)), message.? });
 }
 
 fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
@@ -291,12 +341,15 @@ fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
 fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C) c_int {
     _ = ctx;
 
+    std.log.info("rendering ({d})", .{data.count});
+
     const width = gtk.Widget.getWidth(area.as(gtk.Widget));
     const height = gtk.Widget.getHeight(area.as(gtk.Widget));
 
     c.glViewport(0, 0, width * device_pixel_ratio, height * device_pixel_ratio);
 
     c.glClearColor(1.0, 1.0, 1.0, 1.0);
+    // c.glClearColor(0.0, 1.0, 0.3, 1.0);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
 
     // Use the shader program
@@ -323,56 +376,84 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     return 1;
 }
 
-const vertex_shader_source =
-    \\ #version 410 core
-    \\ layout (location = 0) in vec2 aPos;
-    \\ layout (location = 1) in vec2 aOffset;
-    \\ layout (location = 2) in float aDegree;
-    \\ uniform vec2 uResolution;
-    \\ uniform vec2 uOffset;
-    \\ uniform float uScale;
-    \\ uniform float uDevicePixelRatio;
-    \\ out vec2 vCenter;
-    \\ out float vRadius;
-    \\ void main() {
-    \\     vec2 vPos = (aPos * vec2(100.0) + uOffset + aOffset) * vec2(uScale) / uResolution;
-    \\     gl_Position = vec4(vPos, 0.0, 1.0);
-    \\     vCenter = (uResolution * uDevicePixelRatio / 2) + (uOffset + aOffset) * uScale;
-    \\     vRadius = max(2, uScale * (20 + sqrt(aDegree)));
-    \\ }
-;
+const vertex_shader_source = @embedFile("shaders/node.vert");
+const fragment_shader_source = @embedFile("shaders/node.frag");
 
-const fragment_shader_source =
-    \\ #version 410 core
-    \\ in vec2 vCenter;
-    \\ in float vRadius;
-    \\ out vec4 FragColor;
-    \\ uniform vec2 uResolution;
-    \\ void main() {
-    \\     vec2 pixelPos = gl_FragCoord.xy;
-    \\     float dist = distance(pixelPos, vCenter);
-    \\     float alpha = 1.0 - smoothstep(vRadius - 2.0, vRadius, dist);
-    \\     FragColor = vec4(0.0, 0.0, 0.0, alpha);
-    \\ }
-;
+// const vertex_shader_source =
+//     // \\ #version 410 core
+//     \\ layout (location = 1) in vec2 aOffset;
+//     \\ layout (location = 0) in vec2 aPos;
+//     \\ layout (location = 2) in float aDegree;
+//     \\ uniform vec2 uResolution;
+//     \\ uniform vec2 uOffset;
+//     \\ uniform float uScale;
+//     \\ uniform float uDevicePixelRatio;
+//     \\ out vec2 vCenter;
+//     \\ out float vRadius;
+//     \\ void main() {
+//     \\     vec2 vPos = (aPos * vec2(100.0) + uOffset + aOffset) * vec2(uScale) / uResolution;
+//     \\     gl_Position = vec4(vPos, 0.0, 1.0);
+//     \\     vCenter = (uResolution * uDevicePixelRatio / 2) + (uOffset + aOffset) * uScale;
+//     \\     vRadius = max(2, uScale * (20 + sqrt(aDegree)));
+//     \\ }
+// ;
+
+// const fragment_shader_source =
+//     // \\ #version 410 core
+//     \\ in vec2 vCenter;
+//     \\ in float vRadius;
+//     \\ out vec4 FragColor;
+//     \\ uniform vec2 uResolution;
+//     \\ void main() {
+//     \\     vec2 pixelPos = gl_FragCoord.xy;
+//     \\     float dist = distance(pixelPos, vCenter);
+//     \\     float alpha = 1.0 - smoothstep(vRadius - 2.0, vRadius, dist);
+//     \\     FragColor = vec4(0.0, 0.0, 0.0, alpha);
+//     \\ }
+// ;
+
+var info_log_len: i32 = 0;
+var info_log_buffer: [4096]u8 = undefined;
 
 fn createShaderProgram() c.GLuint {
     const vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
     defer c.glDeleteShader(vertex_shader);
-
     c.glShaderSource(vertex_shader, 1, &vertex_shader_source.ptr, null);
     c.glCompileShader(vertex_shader);
 
+    c.glGetShaderInfoLog(vertex_shader, info_log_buffer.len, &info_log_len, &info_log_buffer);
+    if (info_log_len > 0) {
+        std.log.info("vertex shader info log -------", .{});
+        const stderr = std.io.getStdErr();
+        const log: [*:0]const u8 = @ptrCast(&info_log_buffer);
+        stderr.writeAll(std.mem.span(log)) catch |err| @panic(@errorName(err));
+    }
+
     const fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
     defer c.glDeleteShader(fragment_shader);
-
     c.glShaderSource(fragment_shader, 1, &fragment_shader_source.ptr, null);
     c.glCompileShader(fragment_shader);
+
+    c.glGetShaderInfoLog(fragment_shader, info_log_buffer.len, &info_log_len, &info_log_buffer);
+    if (info_log_len > 0) {
+        std.log.info("fragment shader info log -------", .{});
+        const stderr = std.io.getStdErr();
+        const log: [*:0]const u8 = @ptrCast(&info_log_buffer);
+        stderr.writeAll(std.mem.span(log)) catch |err| @panic(@errorName(err));
+    }
 
     const shader_program = c.glCreateProgram();
     c.glAttachShader(shader_program, vertex_shader);
     c.glAttachShader(shader_program, fragment_shader);
     c.glLinkProgram(shader_program);
+
+    c.glGetProgramInfoLog(shader_program, info_log_buffer.len, &info_log_len, &info_log_buffer);
+    if (info_log_len > 0) {
+        std.log.info("program info log -------", .{});
+        const stderr = std.io.getStdErr();
+        const log: [*:0]const u8 = @ptrCast(&info_log_buffer);
+        stderr.writeAll(std.mem.span(log)) catch |err| @panic(@errorName(err));
+    }
 
     return shader_program;
 }
@@ -396,7 +477,7 @@ fn handleMouseRelease(gesture: *gtk.GestureClick, n_press: i32, x: f64, y: f64, 
 fn handleMouseDrag(gesture: *gtk.GestureDrag, offset_x: f64, offset_y: f64, data: *Data) callconv(.C) void {
     const offset: @Vector(2, f32) = .{
         @floatCast(offset_x * device_pixel_ratio / data.scale),
-        @floatCast(-offset_y * device_pixel_ratio  / data.scale),
+        @floatCast(-offset_y * device_pixel_ratio / data.scale),
     };
 
     const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(gesture.as(gtk.EventController)));
@@ -423,7 +504,7 @@ fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, d
 fn handleMouseMotion(controller: *gtk.EventControllerMotion, x: f64, y: f64, data: *Data) callconv(.C) void {
     _ = controller;
 
-    data.cursor = .{@floatCast(x), @floatCast(y)};
+    data.cursor = .{ @floatCast(x), @floatCast(y) };
 }
 
 fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) void {

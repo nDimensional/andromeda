@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) !void {
     exe.linkLibC();
     exe.root_module.addOptions("build_options", build_options);
 
-    exe.root_module.linkFramework("OpenGL", .{});
+    // exe.root_module.linkFramework("OpenGL", .{});
     exe.root_module.linkSystemLibrary("epoxy", .{});
 
     exe.root_module.addImport("sqlite", sqlite);
