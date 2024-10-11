@@ -229,7 +229,6 @@ pub const ApplicationWindow = extern struct {
     fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         win.log("Starting...", .{});
 
-        win.private().open_action.setEnabled(0);
         win.private().save_action.setEnabled(0);
         win.private().randomize_action.setEnabled(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
@@ -370,7 +369,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});
             class.bindTemplateChildPrivate("stop_button", .{});
-            // class.bindTemplateChildPrivate("view_button", .{});
 
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
@@ -404,7 +402,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     win.log("Finished loading.", .{});
     win.private().status = .Stopped;
-    win.private().open_action.setEnabled(1);
+    win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
@@ -430,7 +428,7 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
 
     win.private().status = .Stopped;
 
-    win.private().open_action.setEnabled(1);
+    win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
