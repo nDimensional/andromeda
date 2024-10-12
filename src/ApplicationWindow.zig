@@ -32,10 +32,10 @@ const center_scale = 1;
 const temperature_scale = 1000;
 
 const initial_params = Params{
-    .attraction = 0.0001,
-    .repulsion = 100.0,
-    .center = 0.00002,
-    .temperature = 0.1,
+    .attraction = 0.00001,
+    .repulsion = 10.0,
+    .center = 1.0,
+    .temperature = 0.3,
 };
 
 var label_buffer: [128]u8 = undefined;
@@ -448,11 +448,13 @@ fn handleRender(user_data: ?*anyopaque) callconv(.C) c_int {
         }
     }
 
-    if (win.private().status == .Running) {
-        return 1;
-    } else {
-        return 0;
-    }
+    return 1;
+
+    // if (win.private().status == .Running) {
+    //     return 1;
+    // } else {
+    //     return 0;
+    // }
 }
 
 fn handleOpen(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {

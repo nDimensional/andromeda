@@ -11,16 +11,16 @@ const Progress = @import("Progress.zig");
 
 pub const UpdateParams = struct { x: f32, y: f32, idx: u32 };
 pub const SelectEdgesBySourceParams = struct { source: u32, min_target: u32, max_target: u32 };
-pub const SelectEdgesBySourceResult = struct { idx: u32, target: u32 };
+pub const SelectEdgesBySourceResult = struct { target: u32 };
 pub const SelectEdgesByTargetParams = struct { target: u32, min_source: u32, max_source: u32 };
-pub const SelectEdgesByTargetResult = struct { idx: u32, source: u32 };
+pub const SelectEdgesByTargetResult = struct { source: u32 };
 pub const CountEdgesBySourceParams = struct { source: u32, min_target: u32, max_target: u32 };
 pub const CountEdgesBySourceResult = struct { count: usize };
 pub const CountEdgesByTargetParams = struct { target: u32, min_source: u32, max_source: u32 };
 pub const CountEdgesByTargetResult = struct { count: usize };
 
 pub const SelectNodesParams = struct {};
-pub const SelectNodesResult = struct { idx: u32, incoming_degree: u32, x: f32, y: f32 };
+pub const SelectNodesResult = struct { idx: u32, x: f32, y: f32 };
 pub const SelectEdgesParams = struct {};
 pub const SelectEdgesResult = struct { source: u32, target: u32 };
 
@@ -31,7 +31,7 @@ pub const CountEdgesInRangeParams = struct { min_source: u32, max_source: u32, m
 pub const CountEdgesInRangeResult = struct { count: usize };
 
 pub const SelectEdgesInRangeParams = struct { min_source: u32, max_source: u32, min_target: u32, max_target: u32 };
-pub const SelectEdgesInRangeResult = struct { idx: u32, source: u32, target: u32 };
+pub const SelectEdgesInRangeResult = struct { source: u32, target: u32 };
 
 const Store = @This();
 
@@ -72,7 +72,7 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     );
 
     store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
-        \\ SELECT idx, incoming_degree, x, y FROM nodes ORDER BY idx ASC
+        \\ SELECT idx, x, y FROM nodes ORDER BY idx ASC
     );
 
     store.select_edges = try store.db.prepare(SelectEdgesParams, SelectEdgesResult,
@@ -80,11 +80,11 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     );
 
     store.select_edges_by_source = try store.db.prepare(SelectEdgesBySourceParams, SelectEdgesBySourceResult,
-        \\ SELECT idx, target FROM edges WHERE source = :source AND :min_target <= target AND target <= :max_target
+        \\ SELECT target FROM edges WHERE source = :source AND :min_target <= target AND target <= :max_target
     );
 
     store.select_edges_by_target = try store.db.prepare(SelectEdgesByTargetParams, SelectEdgesByTargetResult,
-        \\ SELECT idx, source FROM edges WHERE target = :target AND :min_source <= source AND source <= :max_source
+        \\ SELECT source FROM edges WHERE target = :target AND :min_source <= source AND source <= :max_source
     );
 
     store.count_edges_by_source = try store.db.prepare(CountEdgesBySourceParams, CountEdgesBySourceResult,
@@ -96,7 +96,7 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     );
 
     store.select_edges_in_range = try store.db.prepare(SelectEdgesInRangeParams, SelectEdgesInRangeResult,
-        \\ SELECT idx, source, target FROM edges
+        \\ SELECT source, target FROM edges
         \\   WHERE :min_target <= target
         \\     AND target <= :max_target
         \\     AND :min_source <= source
