@@ -4,6 +4,7 @@ const Quadtree = @import("../Quadtree.zig");
 const Graph = @import("../Graph.zig");
 
 const Params = @import("../Params.zig");
+const norm = @import("../utils.zig").norm;
 
 const Engine = @This();
 
@@ -31,11 +32,6 @@ stats_pool: []Stats,
 count: u64,
 
 stats: Stats,
-// min_y: f32,
-// max_y: f32,
-// min_x: f32,
-// max_x: f32,
-// swing: f32,
 
 params: *const Params,
 
@@ -207,8 +203,4 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
 
         stats.energy += norm(f);
     }
-}
-
-inline fn norm(f: Params.Force) f32 {
-    return std.math.sqrt(@reduce(.Add, f * f));
 }
