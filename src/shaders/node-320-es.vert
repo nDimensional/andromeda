@@ -1,5 +1,5 @@
 #version 320 es
-precision mediump float; // GLSL ES requires precision specifiers
+precision mediump float;
 precision mediump int;
 
 in vec2 aPos;
@@ -17,10 +17,9 @@ out float vRadius;
 void main() {
     vec2 c = (uOffset + aOffset) * uScale;
     vec2 v = aPos * vec2(100.0) * uScale + c;
-    // vec2 v = aPos * vec2(100.0);
     gl_Position = vec4(v / uResolution, 0.0, 1.0);
-    // gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
-
     vCenter = (uResolution * uDevicePixelRatio / 2.0) + c;
-    vRadius = max(2.0, uScale * (20.0 + sqrt(aDegree)));
+
+    float r = 20.0 + sqrt(aDegree);
+    vRadius = max(2.0, uScale * r);
 }
