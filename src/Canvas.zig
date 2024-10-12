@@ -207,11 +207,7 @@ const vertices: []const @Vector(2, f32) = &.{
 };
 
 fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
-    std.log.info("handleRealize", .{});
-
     area.setAutoRender(0);
-    const scale_factor = area.as(gtk.Widget).getScaleFactor();
-    std.log.info("scale_factor: {d}", .{scale_factor});
 
     gtk.GLArea.makeCurrent(area);
     if (area.getError()) |err| {
@@ -385,8 +381,25 @@ const shaders = .{
     .frag410core = @embedFile("shaders/node-410-core.frag"),
 };
 
-// const vertex_shader_source = @embedFile("shaders/node.vert");
-// const fragment_shader_source = @embedFile("shaders/node.frag");
+fn getVertexShader(major: i32, minor: i32, api: gdk.GLAPI) [:0]const u8 {
+    if (major == 4 and minor >= 1 and api.gl) {
+        return shaders.vert410core;
+    } else if (major == 3 and minor >= 2 and api.gles) {
+        return shaders.vert320es;
+    } else {
+        @panic("unsupported OpenGL version");
+    }
+}
+
+fn getFragmentShader(major: i32, minor: i32, api: gdk.GLAPI) [:0]const u8 {
+    if (major == 4 and minor >= 1 and api.gl) {
+        return shaders.frag410core;
+    } else if (major == 3 and minor >= 2 and api.gles) {
+        return shaders.frag320es;
+    } else {
+        @panic("unsupported OpenGL version");
+    }
+}
 
 var info_log_len: i32 = 0;
 var info_log_buffer: [4096]u8 = undefined;
@@ -396,12 +409,12 @@ fn createShaderProgram(area: *gtk.GLArea) c.GLuint {
     var major: i32 = 0;
     var minor: i32 = 0;
     ctx.getVersion(&major, &minor);
-    const apis = ctx.getAllowedApis();
+    const api = ctx.getAllowedApis();
     std.log.info("version: {d}.{d}", .{ major, minor });
-    std.log.info("apis: [ gl: {any}, es: {any} ]", .{ apis.gl, apis.gles });
+    std.log.info("apis: [ gl: {any}, es: {any} ]", .{ api.gl, api.gles });
 
-    const vertex_shader_source = shaders.vert410core;
-    const fragment_shader_source = shaders.frag410core;
+    const vertex_shader_source = getVertexShader(major, minor, api);
+    const fragment_shader_source = getFragmentShader(major, minor, api);
 
     const vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
     defer c.glDeleteShader(vertex_shader);
@@ -475,7 +488,7 @@ fn handleMouseDrag(gesture: *gtk.GestureDrag, offset_x: f64, offset_y: f64, data
 }
 
 fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, data: *Data) callconv(.C) c_int {
-    std.log.info("handleMouseScroll: ({d}, {d})", .{ dx, dy });
+    _ = dx;
 
     var zoom = data.zoom + 8 * dy;
     zoom = @min(MAX_ZOOM, zoom);

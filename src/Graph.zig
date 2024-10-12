@@ -119,7 +119,6 @@ fn loadNodes(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
         const i = node.idx - 1;
         self.positions[i] = .{ node.x, node.y };
-        // self.z[i] = @floatFromInt(node.incoming_degree);
 
         if (j % batch_size == 0) {
             const value = @as(f64, @floatFromInt(j)) / total;
