@@ -151,7 +151,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     while (i < self.graph.node_count) : (i += 1) {
         const p = self.graph.positions[i];
         if (tree.area.contains(p)) {
-            const mass = self.params.getMass(self.graph.z[i]);
+            const mass = Params.getMass(self.graph.z[i]);
             try tree.insert(p, mass);
         }
     }
@@ -172,7 +172,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
             break;
         }
 
-        const mass = self.params.getMass(self.graph.z[i]);
+        const mass = Params.getMass(self.graph.z[i]);
         var p = self.graph.positions[i];
 
         var f: @Vector(2, f32) = .{ 0, 0 };
@@ -211,13 +211,4 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
 
 inline fn norm(f: Params.Force) f32 {
     return std.math.sqrt(@reduce(.Add, f * f));
-}
-
-fn getNodeForce(self: *Engine, p: Params.Point, mass: f32) Params.Force {
-    var force = Params.Force{ 0, 0 };
-    for (0..self.graph.node_count) |i| {
-        force += self.params.getRepulsion(p, mass, self.graph.positions[i], self.params.getMass(self.graph.z[i]));
-    }
-
-    return force;
 }

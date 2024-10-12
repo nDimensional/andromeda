@@ -35,6 +35,6 @@ pub inline fn getAttraction(self: Self, s: Point, t: Point) Force {
     return delta;
 }
 
-pub fn getMass(_: Self, incoming_degree: f32) f32 {
+pub fn getMass(incoming_degree: f32) f32 {
     return std.math.sqrt(incoming_degree);
 }

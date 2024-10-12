@@ -148,7 +148,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     while (i < self.graph.node_count) : (i += 1) {
         const p = self.graph.positions[i];
         if (tree.area.contains(p)) {
-            const mass = self.params.getMass(self.graph.z[i]);
+            const mass = Params.getMass(self.graph.z[i]);
             try tree.insert(p, mass);
         }
     }
@@ -167,7 +167,7 @@ fn updateNode(self: *Engine, i: usize) !f32 {
     const b = a + delta;
 
     const center: Params.Force = @splat(self.params.center);
-    const mass_i = self.params.getMass(self.graph.z[i]);
+    const mass_i = Params.getMass(self.graph.z[i]);
 
     var f_a = Params.Force{ 0, 0 };
     var f_b = Params.Force{ 0, 0 };
