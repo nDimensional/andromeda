@@ -6,10 +6,15 @@ pub const Force = @Vector(2, f32);
 
 const Self = @This();
 
-attraction: f32 = 0.00001,
-repulsion: f32 = 10.0,
+// attraction: f32 = 0.00001,
+// repulsion: f32 = 10.0,
+// center: f32 = 1.0,
+// temperature: f32 = 0.3,
+
+attraction: f32 = 0.0001,
+repulsion: f32 = 100.0,
 center: f32 = 1.0,
-temperature: f32 = 0.3,
+temperature: f32 = 0.2,
 
 /// Get the force exerted on A by B
 pub fn getRepulsion(self: Self, a: Point, a_mass: f32, b: Point, b_mass: f32) Force {
@@ -22,7 +27,7 @@ pub fn getRepulsion(self: Self, a: Point, a_mass: f32, b: Point, b_mass: f32) Fo
 
     const unit = delta / @as(Force, @splat(dist));
 
-    const f = -1 * (-self.repulsion / 500) * a_mass * b_mass / dist;
+    const f = -1 * (self.repulsion / 500) * a_mass * b_mass / dist;
 
     return unit * @as(Force, @splat(f));
 }
