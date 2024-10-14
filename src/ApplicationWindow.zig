@@ -31,12 +31,7 @@ const repulsion_scale = 1;
 const center_scale = 1;
 const temperature_scale = 1000;
 
-const initial_params = Params{
-    .attraction = 0.00001,
-    .repulsion = 10.0,
-    .center = 1.0,
-    .temperature = 0.3,
-};
+const initial_params = Params{};
 
 var label_buffer: [128]u8 = undefined;
 

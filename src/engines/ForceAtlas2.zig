@@ -22,7 +22,7 @@ const free_threads = 2;
 allocator: std.mem.Allocator,
 timer: std.time.Timer,
 graph: *const Graph,
-quads: [4]Quadtree,
+trees: [4]Quadtree,
 node_forces: []Params.Force,
 
 pool_size: usize,
@@ -49,13 +49,13 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     self.thread_pool = try allocator.alloc(std.Thread, self.pool_size);
     self.stats_pool = try allocator.alloc(Stats, self.pool_size);
 
-    for (0..self.quads.len) |i| {
+    for (0..self.trees.len) |i| {
         const q = @as(u2, @intCast(i));
-        self.quads[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)));
+        self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)));
     }
 
     self.node_forces = try allocator.alloc(Params.Force, graph.node_count);
-    for (self.node_forces) |*f| f.* = .{ 0, 0 };
+    for (self.node_forces) |*f| f.* = @splat(0);
 
     self.count = 0;
     self.stats = Stats{};
@@ -71,7 +71,7 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 }
 
 pub fn deinit(self: *const Engine) void {
-    inline for (self.quads) |q| q.deinit();
+    inline for (self.trees) |q| q.deinit();
     self.allocator.free(self.node_forces);
     self.allocator.free(self.thread_pool);
     self.allocator.free(self.stats_pool);
@@ -132,7 +132,7 @@ fn rebuildTrees(self: *Engine) !void {
 
     var pool: [4]std.Thread = undefined;
     for (0..4) |i| {
-        const tree = &self.quads[i];
+        const tree = &self.trees[i];
         tree.reset(area.divide(@enumFromInt(i)));
         pool[i] = try std.Thread.spawn(.{}, rebuildTree, .{ self, tree });
     }
@@ -153,7 +153,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     }
 }
 
-fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
+fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
     const temperature = self.params.temperature;
     const center: Params.Force = @splat(self.params.center);
 
@@ -179,8 +179,8 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) void {
         for (self.graph.incoming_edges[i].items) |j|
             f += self.params.getAttraction(p, self.graph.positions[j]);
 
-        for (self.quads) |tree|
-            f += tree.getForce(self.params, p, mass);
+        for (self.trees) |tree|
+            f += try tree.getForce(self.params, p, mass);
 
         f += center * self.params.getAttraction(p, .{ 0, 0 });
 

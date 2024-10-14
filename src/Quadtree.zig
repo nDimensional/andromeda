@@ -218,6 +218,14 @@ fn removeNode(self: *Quadtree, body: u32, area: Area, position: @Vector(2, f32),
     return false;
 }
 
+pub fn getTotalMass(self: Quadtree) f32 {
+    if (self.tree.items.len == 0) {
+        return 0;
+    } else {
+        return self.tree.items[0].mass;
+    }
+}
+
 pub fn getForce(self: Quadtree, params: *const Params, p: @Vector(2, f32), mass: f32) @Vector(2, f32) {
     if (self.tree.items.len == 0) {
         return .{ 0, 0 };
