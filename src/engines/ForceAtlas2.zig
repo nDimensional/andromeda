@@ -180,7 +180,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
             f += self.params.getAttraction(p, self.graph.positions[j]);
 
         for (self.trees) |tree|
-            f += try tree.getForce(self.params, p, mass);
+            f += tree.getForce(self.params, p, mass);
 
         f += center * self.params.getAttraction(p, .{ 0, 0 });
 
