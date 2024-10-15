@@ -72,8 +72,8 @@ pub const ApplicationWindow = extern struct {
 
         params: Params,
         metrics: Metrics,
-        metrics_source_id: u32,
-        render_source_id: u32,
+        metrics_source_id: ?u32,
+        render_source_id: ?u32,
 
         open_action: *gio.SimpleAction,
         open_action_id: u64,
@@ -170,8 +170,8 @@ pub const ApplicationWindow = extern struct {
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
-        win.private().render_source_id = 0;
-        win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
+        win.private().render_source_id = null;
+        win.private().metrics_source_id = null;
         win.private().metrics.count = 0;
         win.private().metrics.energy = 0;
         win.private().metrics.time = 0;
@@ -181,6 +181,12 @@ pub const ApplicationWindow = extern struct {
         win.private().open_action.unref();
         win.private().save_action.unref();
         win.private().randomize_action.unref();
+
+        const ctx = glib.MainContext.default();
+        if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
+        if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
+        win.private().render_source_id = null;
+        win.private().metrics_source_id = null;
 
         gtk.Widget.disposeTemplate(win.as(gtk.Widget), getGObjectType());
         gobject.Object.virtual_methods.dispose.call(Class.parent.as(gobject.Object.Class), win.as(gobject.Object));
@@ -204,8 +210,10 @@ pub const ApplicationWindow = extern struct {
         if (win.private().engine_thread) |engine_thread| engine_thread.detach();
 
         const ctx = glib.MainContext.default();
-        ctx.findSourceById(win.private().render_source_id).destroy();
-        ctx.findSourceById(win.private().metrics_source_id).destroy();
+        if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
+        if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
+        win.private().render_source_id = null;
+        win.private().metrics_source_id = null;
     }
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
@@ -235,6 +243,10 @@ pub const ApplicationWindow = extern struct {
             std.log.err("failed to spawn engine thread: {s}", .{@errorName(err)});
             return;
         };
+
+        const ctx = glib.MainContext.default();
+        if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
+        if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
 
         win.private().render_source_id = glib.idleAdd(&handleRender, win);
         win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
