@@ -83,7 +83,9 @@ pub const ApplicationWindow = extern struct {
         randomize_action_id: u64,
 
         stop_action: *gio.SimpleAction,
+        stop_action_id: u64,
         start_action: *gio.SimpleAction,
+        start_action_id: u64,
 
         var offset: c_int = 0;
     };
@@ -114,9 +116,9 @@ pub const ApplicationWindow = extern struct {
         win.private().timer = std.time.Timer.start() catch |err| @panic(@errorName(err));
         win.private().dirty = false;
 
-        _ = gtk.Button.signals.clicked.connect(win.private().stop_button, *ApplicationWindow, &handleStopClicked, win, .{});
         _ = gtk.Button.signals.clicked.connect(win.private().tick_button, *ApplicationWindow, &handleTickClicked, win, .{});
-        _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
+        // _ = gtk.Button.signals.clicked.connect(win.private().stop_button, *ApplicationWindow, &handleStopClicked, win, .{});
+        // _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
@@ -132,25 +134,25 @@ pub const ApplicationWindow = extern struct {
         win.as(gio.ActionMap).addAction(save_action.as(gio.Action));
         win.private().save_action = save_action;
         win.private().save_action_id = gio.SimpleAction.signals.activate.connect(save_action, *ApplicationWindow, &handleSave, win, .{});
-
         save_action.setEnabled(0);
 
         const randomize_action = gio.SimpleAction.new("randomize", null);
         win.as(gio.ActionMap).addAction(randomize_action.as(gio.Action));
         win.private().randomize_action = randomize_action;
         win.private().randomize_action_id = gio.SimpleAction.signals.activate.connect(randomize_action, *ApplicationWindow, &handleRandomize, win, .{});
-
         randomize_action.setEnabled(0);
-
-        const start_action = gio.SimpleAction.new("start", null);
-        win.as(gio.ActionMap).addAction(start_action.as(gio.Action));
-        win.private().start_action = start_action;
-        start_action.setEnabled(0);
 
         const stop_action = gio.SimpleAction.new("stop", null);
         win.as(gio.ActionMap).addAction(stop_action.as(gio.Action));
         win.private().stop_action = stop_action;
+        win.private().stop_action_id = gio.SimpleAction.signals.activate.connect(stop_action, *ApplicationWindow, &handleStop, win, .{});
         stop_action.setEnabled(0);
+
+        const start_action = gio.SimpleAction.new("start", null);
+        win.as(gio.ActionMap).addAction(start_action.as(gio.Action));
+        win.private().start_action = start_action;
+        win.private().start_action_id = gio.SimpleAction.signals.activate.connect(start_action, *ApplicationWindow, &handleStart, win, .{});
+        start_action.setEnabled(0);
 
         win.private().params = initial_params;
 
@@ -159,9 +161,9 @@ pub const ApplicationWindow = extern struct {
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
 
-        win.private().stop_button.as(gtk.Widget).setSensitive(0);
+        win.private().start_action.setEnabled(0);
+        win.private().stop_action.setEnabled(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
-        win.private().start_button.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
@@ -203,18 +205,7 @@ pub const ApplicationWindow = extern struct {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
     }
 
-    fn handleStopClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        win.log("Stopping...", .{});
-        win.private().status = .Stopping;
-        win.private().stop_button.as(gtk.Widget).setSensitive(0);
-        if (win.private().engine_thread) |engine_thread| engine_thread.detach();
 
-        const ctx = glib.MainContext.default();
-        if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
-        if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
-        win.private().render_source_id = null;
-        win.private().metrics_source_id = null;
-    }
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const graph = win.private().graph orelse return;
@@ -227,29 +218,6 @@ pub const ApplicationWindow = extern struct {
         win.updateMetrics() catch |err| @panic(@errorName(err));
 
         win.private().canvas.update(graph.positions);
-    }
-
-    fn handleStartClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
-        win.log("Starting...", .{});
-
-        win.private().save_action.setEnabled(0);
-        win.private().randomize_action.setEnabled(0);
-        win.private().tick_button.as(gtk.Widget).setSensitive(0);
-        win.private().start_button.as(gtk.Widget).setSensitive(0);
-        win.private().stop_button.as(gtk.Widget).setSensitive(1);
-
-        win.private().status = .Starting;
-        win.private().engine_thread = std.Thread.spawn(.{}, loop, .{win}) catch |err| {
-            std.log.err("failed to spawn engine thread: {s}", .{@errorName(err)});
-            return;
-        };
-
-        const ctx = glib.MainContext.default();
-        if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
-        if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
-
-        win.private().render_source_id = glib.idleAdd(&handleRender, win);
-        win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
     }
 
     fn handleAttractionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -412,9 +380,11 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
+    win.private().stop_action.setEnabled(0);
+    win.private().start_action.setEnabled(1);
+    // win.private().stop_button.as(gtk.Widget).setSensitive(0);
+    // win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
-    win.private().start_button.as(gtk.Widget).setSensitive(1);
-    win.private().stop_button.as(gtk.Widget).setSensitive(0);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
@@ -438,9 +408,11 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
+    win.private().stop_action.setEnabled(0);
+    win.private().start_action.setEnabled(1);
+    // win.private().stop_button.as(gtk.Widget).setSensitive(0);
+    // win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
-    win.private().start_button.as(gtk.Widget).setSensitive(1);
-    win.private().stop_button.as(gtk.Widget).setSensitive(0);
 
     return 0;
 }
@@ -506,4 +478,47 @@ fn handleRandomize(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *Applicat
     graph.randomize(s * 100);
     win.private().canvas.update(graph.positions);
     win.log("Randomized.", .{});
+}
+
+fn handleStop(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
+    _ = variant;
+
+    win.log("Stopping...", .{});
+    win.private().status = .Stopping;
+    win.private().stop_button.as(gtk.Widget).setSensitive(0);
+    if (win.private().engine_thread) |engine_thread| engine_thread.detach();
+
+    const ctx = glib.MainContext.default();
+    if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
+    if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
+    win.private().render_source_id = null;
+    win.private().metrics_source_id = null;
+}
+
+fn handleStart(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
+    _ = variant;
+
+    win.log("Starting...", .{});
+
+    win.private().save_action.setEnabled(0);
+    win.private().randomize_action.setEnabled(0);
+    win.private().tick_button.as(gtk.Widget).setSensitive(0);
+
+    win.private().start_action.setEnabled(0);
+    win.private().stop_action.setEnabled(1);
+    // win.private().start_button.as(gtk.Widget).setSensitive(0);
+    // win.private().stop_button.as(gtk.Widget).setSensitive(1);
+
+    win.private().status = .Starting;
+    win.private().engine_thread = std.Thread.spawn(.{}, ApplicationWindow.loop, .{win}) catch |err| {
+        std.log.err("failed to spawn engine thread: {s}", .{@errorName(err)});
+        return;
+    };
+
+    const ctx = glib.MainContext.default();
+    if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
+    if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
+
+    win.private().render_source_id = glib.idleAdd(&handleRender, win);
+    win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
 }

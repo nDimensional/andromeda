@@ -20,11 +20,16 @@ pub fn main() void {
         setAccelsForAction(app, "win.open", "<Meta>o");
         setAccelsForAction(app, "win.save", "<Meta>s");
         setAccelsForAction(app, "win.randomize", "<Meta>r");
+        setAccelsForAction(app, "window.close", "<Meta>w");
     } else {
         setAccelsForAction(app, "win.open", "<Control>o");
         setAccelsForAction(app, "win.save", "<Control>s");
         setAccelsForAction(app, "win.randomize", "<Control>r");
+        setAccelsForAction(app, "window.close", "<Control>w");
     }
+
+    setAccelsForAction(app, "win.start", "space");
+    setAccelsForAction(app, "win.stop", "space");
 
     const status = gio.Application.run(app.as(gio.Application), @intCast(std.os.argv.len), std.os.argv.ptr);
     std.process.exit(@intCast(status));

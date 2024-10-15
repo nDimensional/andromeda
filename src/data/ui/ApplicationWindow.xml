@@ -52,12 +52,14 @@
                   <object class="GtkButton" id="stop_button">
                     <property name="icon-name">media-playback-stop-symbolic</property>
                     <property name="tooltip-text">Stop</property>
+                    <property name="action-name">win.stop</property>
                   </object>
                 </child>
                 <child>
                   <object class="GtkButton" id="start_button">
                     <property name="icon-name">media-playback-start-symbolic</property>
                     <property name="tooltip-text">Start</property>
+                    <property name="action-name">win.start</property>
                   </object>
                 </child>
                 <child>
