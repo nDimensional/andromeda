@@ -281,8 +281,6 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
 }
 
 fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
-    std.log.info("handleUnrealize", .{});
-
     gtk.GLArea.makeCurrent(area);
     if (area.getError()) |err| {
         std.log.err("error handling GLArea unrealize signal: {any}", .{err});

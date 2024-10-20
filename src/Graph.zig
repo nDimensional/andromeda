@@ -10,9 +10,12 @@ const Store = @import("Store.zig");
 
 const Progress = @import("Progress.zig");
 
-pub const Count = struct { count: usize };
-
 const Graph = @This();
+
+pub const Node = struct {
+    mass: f32,
+    position: @Vector(2, f32),
+};
 
 pub const Options = struct {
     progress_bar: ?*gtk.ProgressBar = null,
@@ -31,8 +34,8 @@ outgoing_edges: []std.ArrayListUnmanaged(u32),
 incoming_edges: []std.ArrayListUnmanaged(u32),
 
 z: []f32,
-
 positions: []@Vector(2, f32),
+node_index: std.AutoArrayHashMap(u32, u32),
 
 pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Graph {
     const graph = try allocator.create(Graph);
@@ -41,16 +44,15 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     graph.store = store;
     graph.prng = std.Random.Xoshiro256.init(0);
     graph.node_count = try store.countNodes();
-    graph.edge_count = try store.countEdges();
-
-    std.log.info("NODE_COUNT: {d}", .{graph.node_count});
-    std.log.info("EDGE_COUNT: {d}", .{graph.edge_count});
+    graph.edge_count = 0;
 
     graph.outgoing_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
     graph.incoming_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
 
     for (graph.outgoing_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
     for (graph.incoming_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
+
+    graph.node_index = std.AutoArrayHashMap(u32, u32).init(allocator);
 
     graph.positions = try allocator.alloc(@Vector(2, f32), graph.node_count);
     for (graph.positions) |*p| p.* = .{ 0, 0 };
@@ -61,7 +63,8 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     return graph;
 }
 
-pub fn deinit(self: *const Graph) void {
+pub fn deinit(self: *Graph) void {
+    self.node_index.deinit();
     self.allocator.free(self.z);
     self.allocator.free(self.positions);
 
@@ -95,6 +98,9 @@ fn loadTask(task: *gio.Task, _: ?*gobject.Object, task_data: ?*anyopaque, cancel
     self.loadNodes(cancellable) catch |err| @panic(@errorName(err));
     self.loadEdges(cancellable) catch |err| @panic(@errorName(err));
 
+    std.log.info("NODE_COUNT: {d}", .{self.node_count});
+    std.log.info("EDGE_COUNT: {d}", .{self.edge_count});
+
     task.returnPointer(null, null);
 }
 
@@ -108,20 +114,22 @@ fn loadNodes(self: *Graph, cancellable: ?*gio.Cancellable) !void {
     std.log.info("loading nodes...", .{});
     self.progress.setText(LOADING_NODES);
 
+    try self.node_index.ensureTotalCapacity(self.node_count);
+
     const total: f64 = @floatFromInt(self.node_count);
 
     try self.store.select_nodes.bind(.{});
     defer self.store.select_nodes.reset();
 
-    var j: usize = 0;
-    while (try self.store.select_nodes.step()) |node| : (j += 1) {
-        if (j >= self.node_count) break;
+    var i: usize = 0;
+    while (try self.store.select_nodes.step()) |node| : (i += 1) {
+        if (i >= self.node_count) break;
 
-        const i = node.idx - 1;
+        self.node_index.putAssumeCapacityNoClobber(node.id, @intCast(i));
         self.positions[i] = .{ node.x, node.y };
 
-        if (j % batch_size == 0) {
-            const value = @as(f64, @floatFromInt(j)) / total;
+        if (i % batch_size == 0) {
+            const value = @as(f64, @floatFromInt(i)) / total;
             self.progress.setValue(value);
         }
     }
@@ -142,15 +150,12 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
     var i: usize = 0;
     while (try self.store.select_edges.step()) |edge| : (i += 1) {
-        const s: u32 = @intCast(edge.source - 1);
-        const t: u32 = @intCast(edge.target - 1);
-        if (s < self.node_count and t < self.node_count) {
-            try self.outgoing_edges[s].append(self.allocator, t);
-            try self.incoming_edges[t].append(self.allocator, s);
-
-            self.z[t] += 1;
-            self.edge_count += 1;
-        }
+        const s = self.node_index.get(edge.source) orelse return error.NotFound;
+        const t = self.node_index.get(edge.target) orelse return error.NotFound;
+        try self.outgoing_edges[s].append(self.allocator, t);
+        try self.incoming_edges[t].append(self.allocator, s);
+        self.edge_count += 1;
+        self.z[t] += 1;
 
         if (i % batch_size == 0) {
             const value = @as(f64, @floatFromInt(i)) / total;
@@ -162,10 +167,13 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 pub fn save(self: *Graph) !void {
     try self.store.db.exec("BEGIN TRANSACTION", .{});
 
-    for (0..self.node_count) |i| {
-        const idx: u32 = @intCast(i + 1);
+    var iter = self.node_index.iterator();
+
+    while (iter.next()) |entry| {
+        const id = entry.key_ptr.*;
+        const i = entry.value_ptr.*;
         const p = self.positions[i];
-        try self.store.update.exec(.{ .x = p[0], .y = p[1], .idx = idx });
+        try self.store.update.exec(.{ .x = p[0], .y = p[1], .id = id });
     }
 
     try self.store.db.exec("COMMIT TRANSACTION", .{});

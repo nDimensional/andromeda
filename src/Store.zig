@@ -9,7 +9,7 @@ const sqlite = @import("sqlite");
 
 const Progress = @import("Progress.zig");
 
-pub const UpdateParams = struct { x: f32, y: f32, idx: u32 };
+pub const UpdateParams = struct { x: f32, y: f32, id: u32 };
 pub const SelectEdgesBySourceParams = struct { source: u32, min_target: u32, max_target: u32 };
 pub const SelectEdgesBySourceResult = struct { target: u32 };
 pub const SelectEdgesByTargetParams = struct { target: u32, min_source: u32, max_source: u32 };
@@ -20,7 +20,7 @@ pub const CountEdgesByTargetParams = struct { target: u32, min_source: u32, max_
 pub const CountEdgesByTargetResult = struct { count: usize };
 
 pub const SelectNodesParams = struct {};
-pub const SelectNodesResult = struct { idx: u32, x: f32, y: f32 };
+pub const SelectNodesResult = struct { id: u32, x: f32, y: f32 };
 pub const SelectEdgesParams = struct {};
 pub const SelectEdgesResult = struct { source: u32, target: u32 };
 
@@ -50,9 +50,6 @@ select_edges_in_range: sqlite.Statement(SelectEdgesInRangeParams, SelectEdgesInR
 count_edges_in_range: sqlite.Statement(CountEdgesInRangeParams, CountEdgesInRangeResult),
 update: sqlite.Statement(UpdateParams, void),
 
-// node_count: usize = 0,
-// edge_count: usize = 0,
-
 pub const Options = struct {
     path: ?[*:0]const u8 = null,
     progress_bar: ?*gtk.ProgressBar = null,
@@ -72,7 +69,7 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     );
 
     store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
-        \\ SELECT idx, x, y FROM nodes ORDER BY idx ASC
+        \\ SELECT rowid AS id, x, y FROM nodes ORDER BY rowid ASC
     );
 
     store.select_edges = try store.db.prepare(SelectEdgesParams, SelectEdgesResult,
@@ -112,7 +109,7 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     );
 
     store.update = try store.db.prepare(UpdateParams, void,
-        \\ UPDATE nodes SET x = :x, y = :y WHERE idx = :idx
+        \\ UPDATE nodes SET x = :x, y = :y WHERE rowid = :id
     );
 
     return store;

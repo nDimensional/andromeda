@@ -117,8 +117,6 @@ pub const ApplicationWindow = extern struct {
         win.private().dirty = false;
 
         _ = gtk.Button.signals.clicked.connect(win.private().tick_button, *ApplicationWindow, &handleTickClicked, win, .{});
-        // _ = gtk.Button.signals.clicked.connect(win.private().stop_button, *ApplicationWindow, &handleStopClicked, win, .{});
-        // _ = gtk.Button.signals.clicked.connect(win.private().start_button, *ApplicationWindow, &handleStartClicked, win, .{});
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
@@ -204,8 +202,6 @@ pub const ApplicationWindow = extern struct {
     fn private(win: *ApplicationWindow) *Private {
         return gobject.ext.impl_helpers.getPrivate(win, Private, Private.offset);
     }
-
-
 
     fn handleTickClicked(_: *gtk.Button, win: *ApplicationWindow) callconv(.C) void {
         const graph = win.private().graph orelse return;
@@ -382,8 +378,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().randomize_action.setEnabled(1);
     win.private().stop_action.setEnabled(0);
     win.private().start_action.setEnabled(1);
-    // win.private().stop_button.as(gtk.Widget).setSensitive(0);
-    // win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
@@ -410,8 +404,6 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     win.private().randomize_action.setEnabled(1);
     win.private().stop_action.setEnabled(0);
     win.private().start_action.setEnabled(1);
-    // win.private().stop_button.as(gtk.Widget).setSensitive(0);
-    // win.private().start_button.as(gtk.Widget).setSensitive(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
 
     return 0;
@@ -428,12 +420,6 @@ fn handleRender(user_data: ?*anyopaque) callconv(.C) c_int {
     }
 
     return 1;
-
-    // if (win.private().status == .Running) {
-    //     return 1;
-    // } else {
-    //     return 0;
-    // }
 }
 
 fn handleOpen(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
