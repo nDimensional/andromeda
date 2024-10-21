@@ -35,7 +35,7 @@ pub fn main() !void {
     }
 }
 
-const batch_size = 10000;
+const batch_size = 100000;
 
 pub const InsertNodeParams = struct { id: u32 };
 pub const InsertEdgeParams = struct { source: u32, target: u32 };
@@ -82,6 +82,8 @@ fn importEdgelist(input_path: [:0]const u8, output_path: [:0]const u8) !void {
 
     var i: usize = 0;
     while (try reader.readUntilDelimiterOrEof(&edge_buffer, '\n')) |edge| : (i += 1) {
+        if (edge.len == 0) break;
+
         var iter = std.mem.splitScalar(u8, edge, ' ');
         const source = iter.next() orelse return error.InvalidFile;
         const target = iter.next() orelse return error.InvalidFile;
@@ -96,6 +98,8 @@ fn importEdgelist(input_path: [:0]const u8, output_path: [:0]const u8) !void {
             std.log.info("imported {d} edges", .{i});
         }
     }
+
+    try db.exec("CREATE INDEX IF NOT EXISTS edge_source ON edges(source)", .{});
 }
 
 const SelectEdgeParams = struct {};
@@ -106,7 +110,7 @@ fn exportEdgelist(input_path: [:0]const u8, output_path: [:0]const u8) !void {
     defer db.close();
 
     const select_edges = try db.prepare(SelectEdgeParams, SelectEdgeResult,
-        \\ SELECT source, target FROM edges
+        \\ SELECT source, target FROM edges ORDER BY source ASC
     );
     defer select_edges.finalize();
 
@@ -115,15 +119,17 @@ fn exportEdgelist(input_path: [:0]const u8, output_path: [:0]const u8) !void {
     var output_file = try dir.createFileZ(output_path, .{ .truncate = true });
     defer output_file.close();
 
-    var writer = output_file.writer();
+    var buffer = std.io.bufferedWriter(output_file.writer());
 
     try select_edges.bind(.{});
 
     var i: usize = 0;
     while (try select_edges.step()) |edge| : (i += 1) {
-        try writer.print("{d} {d}\n", .{ edge.source, edge.target });
+        try buffer.writer().print("{d} {d}\n", .{ edge.source, edge.target });
         if (i % batch_size == 0) {
             std.log.info("exported {d} edges", .{i});
         }
     }
+
+    try buffer.flush();
 }
