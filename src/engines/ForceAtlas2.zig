@@ -173,16 +173,16 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
 
         var f: @Vector(2, f32) = .{ 0, 0 };
 
-        for (self.graph.outgoing_edges[i].items) |j|
-            f += self.params.getAttraction(p, self.graph.positions[j]);
+        for (self.graph.outgoing_edges[i].items) |edge|
+            f += self.params.getAttraction(p, self.graph.positions[edge.target], edge.weight);
 
-        for (self.graph.incoming_edges[i].items) |j|
-            f += self.params.getAttraction(p, self.graph.positions[j]);
+        for (self.graph.incoming_edges[i].items) |edge|
+            f += self.params.getAttraction(p, self.graph.positions[edge.source], edge.weight);
 
         for (self.trees) |tree|
             f += tree.getForce(self.params, p, mass);
 
-        f += center * self.params.getAttraction(p, .{ 0, 0 });
+        f += center * self.params.getAttraction(p, .{ 0, 0 }, 1.0);
 
         const swing = norm(self.node_forces[i] - f);
         self.node_forces[i] = f;

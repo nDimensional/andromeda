@@ -81,11 +81,14 @@ pub const ApplicationWindow = extern struct {
         save_action_id: u64,
         randomize_action: *gio.SimpleAction,
         randomize_action_id: u64,
+        reload_action: *gio.SimpleAction,
+        reload_action_id: u64,
 
         stop_action: *gio.SimpleAction,
         stop_action_id: u64,
         start_action: *gio.SimpleAction,
         start_action_id: u64,
+
 
         var offset: c_int = 0;
     };
@@ -152,6 +155,12 @@ pub const ApplicationWindow = extern struct {
         win.private().start_action_id = gio.SimpleAction.signals.activate.connect(start_action, *ApplicationWindow, &handleStart, win, .{});
         start_action.setEnabled(0);
 
+        const reload_action = gio.SimpleAction.new("reload", null);
+        win.as(gio.ActionMap).addAction(reload_action.as(gio.Action));
+        win.private().reload_action = reload_action;
+        win.private().reload_action_id = gio.SimpleAction.signals.activate.connect(reload_action, *ApplicationWindow, &handleReload, win, .{});
+        start_action.setEnabled(0);
+
         win.private().params = initial_params;
 
         win.private().attraction.setValue(initial_params.attraction * attraction_scale);
@@ -181,6 +190,7 @@ pub const ApplicationWindow = extern struct {
         win.private().open_action.unref();
         win.private().save_action.unref();
         win.private().randomize_action.unref();
+        win.private().reload_action.unref();
 
         const ctx = glib.MainContext.default();
         if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
@@ -376,6 +386,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
+    win.private().reload_action.setEnabled(1);
     win.private().stop_action.setEnabled(0);
     win.private().start_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
@@ -402,6 +413,7 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
+    win.private().reload_action.setEnabled(1);
     win.private().stop_action.setEnabled(0);
     win.private().start_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
@@ -488,12 +500,11 @@ fn handleStart(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationW
 
     win.private().save_action.setEnabled(0);
     win.private().randomize_action.setEnabled(0);
+    win.private().reload_action.setEnabled(0);
     win.private().tick_button.as(gtk.Widget).setSensitive(0);
 
     win.private().start_action.setEnabled(0);
     win.private().stop_action.setEnabled(1);
-    // win.private().start_button.as(gtk.Widget).setSensitive(0);
-    // win.private().stop_button.as(gtk.Widget).setSensitive(1);
 
     win.private().status = .Starting;
     win.private().engine_thread = std.Thread.spawn(.{}, ApplicationWindow.loop, .{win}) catch |err| {
@@ -507,4 +518,16 @@ fn handleStart(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationW
 
     win.private().render_source_id = glib.idleAdd(&handleRender, win);
     win.private().metrics_source_id = glib.timeoutAddSeconds(1, &handleMetricsUpdate, win);
+}
+
+fn handleReload(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationWindow) callconv(.C) void {
+    _ = variant;
+
+    const graph = win.private().graph orelse return;
+    graph.reload() catch |err| {
+        std.log.err("error reloading graph: {s}", .{@errorName(err)});
+    };
+
+    win.private().dirty = false;
+    win.private().canvas.update(graph.positions);
 }

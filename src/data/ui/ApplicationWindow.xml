@@ -69,8 +69,14 @@
                   </object>
                 </child>
                 <child>
+                  <object class="GtkButton" id="reload_button">
+                    <property name="icon-name">view-refresh-symbolic</property>
+                    <property name="tooltip-text">Reload</property>
+                    <property name="action-name">win.reload</property>
+                  </object>
+                </child>
+                <child>
                   <object class="GtkButton" id="randomize_button">
-                    <!-- <property name="icon-name">view-refresh-symbolic</property> -->
                     <property name="label">Randomize</property>
                     <property name="tooltip-text">Randomize</property>
                     <property name="action-name">win.randomize</property>

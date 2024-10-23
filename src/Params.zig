@@ -33,9 +33,9 @@ pub fn getRepulsion(self: Self, a: Point, a_mass: f32, b: Point, b_mass: f32) Fo
 }
 
 /// Get the force exerted on S by T
-pub inline fn getAttraction(self: Self, s: Point, t: Point) Force {
-    var delta = t - s;
-    delta *= @splat(self.attraction);
+pub inline fn getAttraction(self: Self, a: Point, b: Point, weight: f32) Force {
+    var delta = b - a;
+    delta *= @splat(self.attraction * weight);
     return delta;
 }
 

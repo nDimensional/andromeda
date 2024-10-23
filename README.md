@@ -1,12 +1,14 @@
 # Andromeda
 
+Andromeda is a high-performance force-directed graph layout engine.
+
 Zig version `0.13.0`.
 
 ```
 $ zig build run
 ```
 
-Your SQLite database should have a schema that looks something like this:
+Your SQLite database should have a schema that looks like this:
 
 ```sql
 CREATE TABLE nodes(

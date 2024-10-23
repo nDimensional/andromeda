@@ -8,8 +8,9 @@
     },
     .dependencies = .{
         .sqlite = .{
-            .url = "https://github.com/nDimensional/zig-sqlite/archive/e30a30b99c4c8c57dfc7dffa29e3706253f04469.tar.gz",
-            .hash = "122097737716aa3e2e44b709dc76229462caa1bb617dec0787e96f75e159dc717bfa",
+            // .url = "https://github.com/nDimensional/zig-sqlite/archive/e30a30b99c4c8c57dfc7dffa29e3706253f04469.tar.gz",
+            .url = "https://github.com/nDimensional/zig-sqlite/archive/3929e173f7b03d82c7f07e765c46cdaf6167f3d5.tar.gz",
+            .hash = "1220aec89b68a962477113406d38ae37d7a04f3bf8b7971ae20a354d2f207e28f353",
         },
         .xml = .{
             .url = "git+https://github.com/ianprime0509/zig-xml?ref=main#0747fa10b28ade9a8516bc5b122dcad997bd8fa7",

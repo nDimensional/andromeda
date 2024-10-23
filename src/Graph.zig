@@ -17,6 +17,9 @@ pub const Node = struct {
     position: @Vector(2, f32),
 };
 
+const OutgoingEdge = struct { target: u32, weight: f32 };
+const IncomingEdge = struct { source: u32, weight: f32 };
+
 pub const Options = struct {
     progress_bar: ?*gtk.ProgressBar = null,
 };
@@ -30,8 +33,8 @@ prng: std.Random.Xoshiro256,
 node_count: usize,
 edge_count: usize,
 
-outgoing_edges: []std.ArrayListUnmanaged(u32),
-incoming_edges: []std.ArrayListUnmanaged(u32),
+outgoing_edges: []std.ArrayListUnmanaged(OutgoingEdge),
+incoming_edges: []std.ArrayListUnmanaged(IncomingEdge),
 
 z: []f32,
 positions: []@Vector(2, f32),
@@ -44,13 +47,16 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     graph.store = store;
     graph.prng = std.Random.Xoshiro256.init(0);
     graph.node_count = try store.countNodes();
-    graph.edge_count = 0;
+    graph.edge_count = try store.countEdges();
 
-    graph.outgoing_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
-    graph.incoming_edges = try allocator.alloc(std.ArrayListUnmanaged(u32), graph.node_count);
+    std.log.info("NODE_COUNT: {d}", .{graph.node_count});
+    std.log.info("EDGE_COUNT: {d}", .{graph.edge_count});
 
-    for (graph.outgoing_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
-    for (graph.incoming_edges) |*list| list.* = std.ArrayListUnmanaged(u32){};
+    graph.outgoing_edges = try allocator.alloc(std.ArrayListUnmanaged(OutgoingEdge), graph.node_count);
+    graph.incoming_edges = try allocator.alloc(std.ArrayListUnmanaged(IncomingEdge), graph.node_count);
+
+    for (graph.outgoing_edges) |*list| list.* = std.ArrayListUnmanaged(OutgoingEdge){};
+    for (graph.incoming_edges) |*list| list.* = std.ArrayListUnmanaged(IncomingEdge){};
 
     graph.node_index = std.AutoArrayHashMap(u32, u32).init(allocator);
 
@@ -77,6 +83,22 @@ pub fn deinit(self: *Graph) void {
     self.allocator.destroy(self);
 }
 
+pub fn reload(self: Graph) !void {
+    // const total: f64 = @floatFromInt(self.node_count);
+
+    try self.store.select_nodes.bind(.{});
+    defer self.store.select_nodes.reset();
+
+    while (try self.store.select_nodes.step()) |node| {
+        const i = self.node_index.get(node.id) orelse return error.InvalidNodeId;
+        self.positions[i] = .{ node.x, node.y };
+        // if (i % batch_size == 0) {
+        //     const value = @as(f64, @floatFromInt(i)) / total;
+        //     self.progress.setValue(value);
+        // }
+    }
+}
+
 pub const LoadOptions = struct {
     callback: ?*const fn (_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopaque) callconv(.C) void = null,
     callback_data: ?*anyopaque = null,
@@ -97,9 +119,6 @@ fn loadTask(task: *gio.Task, _: ?*gobject.Object, task_data: ?*anyopaque, cancel
 
     self.loadNodes(cancellable) catch |err| @panic(@errorName(err));
     self.loadEdges(cancellable) catch |err| @panic(@errorName(err));
-
-    std.log.info("NODE_COUNT: {d}", .{self.node_count});
-    std.log.info("EDGE_COUNT: {d}", .{self.edge_count});
 
     task.returnPointer(null, null);
 }
@@ -150,10 +169,10 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
     var i: usize = 0;
     while (try self.store.select_edges.step()) |edge| : (i += 1) {
-        const s = self.node_index.get(edge.source) orelse return error.NotFound;
-        const t = self.node_index.get(edge.target) orelse return error.NotFound;
-        try self.outgoing_edges[s].append(self.allocator, t);
-        try self.incoming_edges[t].append(self.allocator, s);
+        const s = self.node_index.get(edge.source) orelse return error.NodeNotFound;
+        const t = self.node_index.get(edge.target) orelse return error.NodeNotFound;
+        try self.outgoing_edges[s].append(self.allocator, .{ .target = t, .weight = edge.weight });
+        try self.incoming_edges[t].append(self.allocator, .{ .source = s, .weight = edge.weight });
         self.edge_count += 1;
         self.z[t] += 1;
 
