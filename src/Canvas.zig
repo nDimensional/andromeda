@@ -303,7 +303,6 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     const width = gtk.Widget.getWidth(area.as(gtk.Widget));
     const height = gtk.Widget.getHeight(area.as(gtk.Widget));
 
-
     c.glViewport(0, 0, width * scale_factor, height * scale_factor);
 
     c.glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -476,7 +475,12 @@ fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) v
 }
 
 inline fn getScale(zoom: f32) f32 {
-    return 256 / ((std.math.pow(f32, zoom + 1, 2) - 1) / 256 + 256);
+    const C = 256;
+    const BASE = 32;
+    const x = std.math.pow(f32, zoom + 1, 2) / C + BASE;
+    return C / x;
+
+    // return 256 / ((std.math.pow(f32, zoom + 1, 2) - 1) / 256 + 256);
 }
 
 inline fn getScaleRadius(scale: f32) f32 {

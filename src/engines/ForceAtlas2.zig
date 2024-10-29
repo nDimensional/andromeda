@@ -147,7 +147,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     while (i < self.graph.node_count) : (i += 1) {
         const p = self.graph.positions[i];
         if (tree.area.contains(p)) {
-            const mass = Params.getMass(self.graph.z[i]);
+            const mass = self.graph.z[i];
             try tree.insert(p, mass);
         }
     }
@@ -168,16 +168,30 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
             break;
         }
 
-        const mass = Params.getMass(self.graph.z[i]);
+        const mass = self.graph.z[i];
         var p = self.graph.positions[i];
 
         var f: @Vector(2, f32) = .{ 0, 0 };
 
-        for (self.graph.outgoing_edges[i].items) |edge|
-            f += self.params.getAttraction(p, self.graph.positions[edge.target], edge.weight);
+        for (self.graph.outgoing_edges[i].items) |edge| {
+            const t = self.graph.positions[edge.target];
+            var weight: f32 = edge.weight;
+            if (self.params.weighted_edges) {
+                weight *= mass;
+            }
 
-        for (self.graph.incoming_edges[i].items) |edge|
-            f += self.params.getAttraction(p, self.graph.positions[edge.source], edge.weight);
+            f += self.params.getAttraction(p, t, weight);
+        }
+
+        for (self.graph.incoming_edges[i].items) |edge| {
+            const s = self.graph.positions[edge.source];
+            var weight: f32 = edge.weight;
+            if (self.params.weighted_edges) {
+                weight *= self.graph.z[edge.source];
+            }
+
+            f += self.params.getAttraction(p, s, weight);
+        }
 
         for (self.trees) |tree|
             f += tree.getForce(self.params, p, mass);

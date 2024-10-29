@@ -15,6 +15,8 @@ attraction: f32 = 0.0001,
 repulsion: f32 = 100.0,
 center: f32 = 1.0,
 temperature: f32 = 0.2,
+weighted_nodes: bool = true,
+weighted_edges: bool = true,
 
 /// Get the force exerted on A by B
 pub fn getRepulsion(self: Self, a: Point, a_mass: f32, b: Point, b_mass: f32) Force {
@@ -27,7 +29,10 @@ pub fn getRepulsion(self: Self, a: Point, a_mass: f32, b: Point, b_mass: f32) Fo
 
     const unit = delta / @as(Force, @splat(dist));
 
-    const f = -1 * (self.repulsion / 500) * a_mass * b_mass / dist;
+    var f: f32 = -1 * (self.repulsion) / dist;
+    if (self.weighted_nodes) {
+        f *= a_mass * b_mass / 500;
+    }
 
     return unit * @as(Force, @splat(f));
 }

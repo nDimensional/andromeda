@@ -9,6 +9,7 @@ const sqlite = @import("sqlite");
 const Store = @import("Store.zig");
 
 const Progress = @import("Progress.zig");
+const Params = @import("Params.zig");
 
 const Graph = @This();
 
@@ -167,8 +168,8 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
     try self.store.select_edges.bind(.{});
     defer self.store.select_edges.reset();
 
-    var i: usize = 0;
-    while (try self.store.select_edges.step()) |edge| : (i += 1) {
+    var n: usize = 0;
+    while (try self.store.select_edges.step()) |edge| : (n += 1) {
         const s = self.node_index.get(edge.source) orelse return error.NodeNotFound;
         const t = self.node_index.get(edge.target) orelse return error.NodeNotFound;
         try self.outgoing_edges[s].append(self.allocator, .{ .target = t, .weight = edge.weight });
@@ -176,10 +177,14 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
         self.edge_count += 1;
         self.z[t] += 1;
 
-        if (i % batch_size == 0) {
-            const value = @as(f64, @floatFromInt(i)) / total;
+        if (n % batch_size == 0) {
+            const value = @as(f64, @floatFromInt(n)) / total;
             self.progress.setValue(value);
         }
+    }
+
+    for (0..self.node_count) |i| {
+        self.z[i] = Params.getMass(self.z[i]);
     }
 }
 

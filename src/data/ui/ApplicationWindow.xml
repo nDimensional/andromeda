@@ -15,8 +15,8 @@
 
   <template class="AndromedaApplicationWindow" parent="GtkApplicationWindow">
     <property name="title" translatable="yes">Andromeda</property>
-    <property name="default-width">800</property>
-    <property name="default-height">480</property>
+    <property name="default-width">1200</property>
+    <property name="default-height">720</property>
 
     <child>
       <object class="GtkBox">
@@ -156,6 +156,43 @@
                     <child>
                       <object class="LogScale" id="temperature">
                         <property name="valign">3</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="hexpand">true</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Weight nodes by degree</property>
+                        <property name="hexpand">true</property>
+                        <property name="halign">start</property>
+                        <!-- <property name="value">1</property> -->
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSwitch" id="weighted_nodes">
+                        <property name="halign">end</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="hexpand">true</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="label">Weight edges by degree</property>
+                        <property name="hexpand">true</property>
+                        <property name="halign">start</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkSwitch" id="weighted_edges">
+                        <property name="halign">end</property>
                       </object>
                     </child>
                   </object>

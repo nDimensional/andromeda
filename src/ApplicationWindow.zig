@@ -64,6 +64,8 @@ pub const ApplicationWindow = extern struct {
         start_button: *gtk.Button,
         stop_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
+        weighted_nodes: *gtk.Switch,
+        weighted_edges: *gtk.Switch,
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
@@ -126,6 +128,9 @@ pub const ApplicationWindow = extern struct {
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
 
+        _ = gtk.Switch.signals.state_set.connect(win.private().weighted_nodes, *ApplicationWindow, &handleWeightedNodesValueChanged, win, .{});
+        _ = gtk.Switch.signals.state_set.connect(win.private().weighted_edges, *ApplicationWindow, &handleWeightedEdgesValueChanged, win, .{});
+
         const open_action = gio.SimpleAction.new("open", null);
         gio.ActionMap.addAction(win.as(gio.ActionMap), open_action.as(gio.Action));
         win.private().open_action = open_action;
@@ -167,6 +172,9 @@ pub const ApplicationWindow = extern struct {
         win.private().repulsion.setValue(initial_params.repulsion * repulsion_scale);
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
+
+        win.private().weighted_nodes.setActive(if (initial_params.weighted_nodes) 1 else 0);
+        win.private().weighted_edges.setActive(if (initial_params.weighted_edges) 1 else 0);
 
         win.private().start_action.setEnabled(0);
         win.private().stop_action.setEnabled(0);
@@ -240,6 +248,16 @@ pub const ApplicationWindow = extern struct {
 
     fn handleTemperatureValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
         win.private().params.temperature = @floatCast(value / temperature_scale);
+    }
+
+    fn handleWeightedNodesValueChanged(_: *gtk.Switch, value: c_int, win: *ApplicationWindow) callconv(.C) c_int {
+        win.private().params.weighted_nodes = if (value == 1) true else false;
+        return 0;
+    }
+
+    fn handleWeightedEdgesValueChanged(_: *gtk.Switch, value: c_int, win: *ApplicationWindow) callconv(.C) c_int {
+        win.private().params.weighted_edges = if (value == 1) true else false;
+        return 0;
     }
 
     fn loop(win: *ApplicationWindow) !void {
@@ -355,6 +373,9 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
+
+            class.bindTemplateChildPrivate("weighted_nodes", .{});
+            class.bindTemplateChildPrivate("weighted_edges", .{});
 
             class.bindTemplateChildPrivate("canvas", .{});
         }
