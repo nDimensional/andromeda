@@ -1,6 +1,8 @@
 # Andromeda
 
-Andromeda is a high-performance force-directed graph layout engine.
+Andromeda is a high-performance force-directed graph layout engine written in Zig using GTK and OpenGL.
+
+![](https://assets.joelgustafson.com/2024-11-12/graph-1e6.png)
 
 Zig version `0.13.0`.
 
