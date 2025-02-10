@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <interface>
   <menu id="win-menu">
     <section>
@@ -50,14 +50,18 @@
                 </child>
                 <child>
                   <object class="GtkButton" id="stop_button">
-                    <property name="icon-name">media-playback-stop-symbolic</property>
+                    <property
+                      name="icon-name"
+                    >media-playback-stop-symbolic</property>
                     <property name="tooltip-text">Stop</property>
                     <property name="action-name">win.stop</property>
                   </object>
                 </child>
                 <child>
                   <object class="GtkButton" id="start_button">
-                    <property name="icon-name">media-playback-start-symbolic</property>
+                    <property
+                      name="icon-name"
+                    >media-playback-start-symbolic</property>
                     <property name="tooltip-text">Start</property>
                     <property name="action-name">win.start</property>
                   </object>
@@ -109,7 +113,7 @@
                       </object>
                     </child>
                     <child>
-                      <object class="LogScale" id="attraction"></object>
+                      <object class="LogScale" id="attraction" />
                     </child>
                   </object>
                 </child>
@@ -124,7 +128,7 @@
                       </object>
                     </child>
                     <child>
-                      <object class="LogScale" id="repulsion"></object>
+                      <object class="LogScale" id="repulsion" />
                     </child>
                   </object>
                 </child>
@@ -139,7 +143,7 @@
                       </object>
                     </child>
                     <child>
-                      <object class="LogScale" id="center"></object>
+                      <object class="LogScale" id="center" />
                     </child>
                   </object>
                 </child>
@@ -156,43 +160,6 @@
                     <child>
                       <object class="LogScale" id="temperature">
                         <property name="valign">3</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkBox">
-                    <property name="orientation">horizontal</property>
-                    <property name="hexpand">true</property>
-                    <child>
-                      <object class="GtkLabel">
-                        <property name="label">Weight nodes by degree</property>
-                        <property name="hexpand">true</property>
-                        <property name="halign">start</property>
-                        <!-- <property name="value">1</property> -->
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkSwitch" id="weighted_nodes">
-                        <property name="halign">end</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkBox">
-                    <property name="orientation">horizontal</property>
-                    <property name="hexpand">true</property>
-                    <child>
-                      <object class="GtkLabel">
-                        <property name="label">Weight edges by degree</property>
-                        <property name="hexpand">true</property>
-                        <property name="halign">start</property>
-                      </object>
-                    </child>
-                    <child>
-                      <object class="GtkSwitch" id="weighted_edges">
-                        <property name="halign">end</property>
                       </object>
                     </child>
                   </object>
@@ -229,7 +196,10 @@
                             <property name="margin-top">10</property>
                             <property name="margin-bottom">10</property>
                             <child>
-                              <object class="GtkProgressBar" id="progress_bar" />
+                              <object
+                                class="GtkProgressBar"
+                                id="progress_bar"
+                              />
                             </child>
                           </object>
                         </child>

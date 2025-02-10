@@ -11,6 +11,12 @@ const ApplicationWindow = @import("ApplicationWindow.zig").ApplicationWindow;
 
 const application_id = "xyz.ndimensional.andromeda";
 pub fn main() void {
+    // if (gtk.StyleManager.getDefault()) |manager|
+    //     manager.setColorScheme()
+
+    if (gtk.Settings.getDefault()) |settings|
+        gobject.Object.set(settings.as(gobject.Object), "gtk-application-prefer-dark-theme", @as(c_int, 1));
+
     const app = gtk.Application.new(application_id, .{});
     defer app.unref();
 

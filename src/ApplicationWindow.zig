@@ -64,8 +64,6 @@ pub const ApplicationWindow = extern struct {
         start_button: *gtk.Button,
         stop_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
-        weighted_nodes: *gtk.Switch,
-        weighted_edges: *gtk.Switch,
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
@@ -90,7 +88,6 @@ pub const ApplicationWindow = extern struct {
         stop_action_id: u64,
         start_action: *gio.SimpleAction,
         start_action_id: u64,
-
 
         var offset: c_int = 0;
     };
@@ -127,9 +124,6 @@ pub const ApplicationWindow = extern struct {
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
-
-        _ = gtk.Switch.signals.state_set.connect(win.private().weighted_nodes, *ApplicationWindow, &handleWeightedNodesValueChanged, win, .{});
-        _ = gtk.Switch.signals.state_set.connect(win.private().weighted_edges, *ApplicationWindow, &handleWeightedEdgesValueChanged, win, .{});
 
         const open_action = gio.SimpleAction.new("open", null);
         gio.ActionMap.addAction(win.as(gio.ActionMap), open_action.as(gio.Action));
@@ -172,9 +166,6 @@ pub const ApplicationWindow = extern struct {
         win.private().repulsion.setValue(initial_params.repulsion * repulsion_scale);
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
-
-        win.private().weighted_nodes.setActive(if (initial_params.weighted_nodes) 1 else 0);
-        win.private().weighted_edges.setActive(if (initial_params.weighted_edges) 1 else 0);
 
         win.private().start_action.setEnabled(0);
         win.private().stop_action.setEnabled(0);
@@ -225,7 +216,8 @@ pub const ApplicationWindow = extern struct {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        const engine = Engine.init(c_allocator, graph, params) catch |err| @panic(@errorName(err));
+        const engine = Engine.init(c_allocator, graph, params) catch |err|
+            @panic(@errorName(err));
         defer engine.deinit();
 
         win.tick(engine) catch |err| @panic(@errorName(err));
@@ -250,21 +242,12 @@ pub const ApplicationWindow = extern struct {
         win.private().params.temperature = @floatCast(value / temperature_scale);
     }
 
-    fn handleWeightedNodesValueChanged(_: *gtk.Switch, value: c_int, win: *ApplicationWindow) callconv(.C) c_int {
-        win.private().params.weighted_nodes = if (value == 1) true else false;
-        return 0;
-    }
-
-    fn handleWeightedEdgesValueChanged(_: *gtk.Switch, value: c_int, win: *ApplicationWindow) callconv(.C) c_int {
-        win.private().params.weighted_edges = if (value == 1) true else false;
-        return 0;
-    }
-
     fn loop(win: *ApplicationWindow) !void {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        const engine = Engine.init(c_allocator, graph, params) catch |err| @panic(@errorName(err));
+        const engine = Engine.init(c_allocator, graph, params) catch |err|
+            @panic(@errorName(err));
         defer engine.deinit();
 
         win.private().status = .Running;
@@ -282,12 +265,13 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn tick(win: *ApplicationWindow, engine: *Engine) !void {
+        const graph = win.private().graph orelse return;
         const start = win.private().timer.read();
-        try engine.tick();
+        const count = try engine.tick();
         const time = win.private().timer.read() - start;
-        const total: f32 = @floatFromInt(engine.graph.node_count);
+        const total: f32 = @floatFromInt(graph.node_count);
         win.private().metrics = .{
-            .count = engine.count,
+            .count = count,
             .time = time / 1_000_000,
             .swing = engine.stats.swing / total,
             .energy = engine.stats.energy / total,
@@ -373,9 +357,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("repulsion", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
-
-            class.bindTemplateChildPrivate("weighted_nodes", .{});
-            class.bindTemplateChildPrivate("weighted_edges", .{});
 
             class.bindTemplateChildPrivate("canvas", .{});
         }

@@ -7,8 +7,11 @@
         "build.zig.zon",
     },
     .dependencies = .{
+        .rtree = .{
+            .url = "https://github.com/nDimensional/zig-rtree/archive/14adead4f0bd3154fca1661d8be98d85649c190c.tar.gz",
+            .hash = "1220c640bb723fd4a355a898f418fe31eb84d7181ddf793f5877c4f746d1354b4e68",
+        },
         .sqlite = .{
-            // .url = "https://github.com/nDimensional/zig-sqlite/archive/e30a30b99c4c8c57dfc7dffa29e3706253f04469.tar.gz",
             .url = "https://github.com/nDimensional/zig-sqlite/archive/3929e173f7b03d82c7f07e765c46cdaf6167f3d5.tar.gz",
             .hash = "1220aec89b68a962477113406d38ae37d7a04f3bf8b7971ae20a354d2f207e28f353",
         },

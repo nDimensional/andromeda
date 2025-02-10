@@ -1,10 +1,14 @@
 const std = @import("std");
 
-const Quadtree = @import("../Quadtree.zig");
+const Quadtree = @import("quadtree").Quadtree;
+const Area = @import("quadtree").Area;
+const Force = @import("quadtree").Force;
+
 const Graph = @import("../Graph.zig");
 
 const Params = @import("../Params.zig");
-const norm = @import("../utils.zig").norm;
+const utils = @import("../utils.zig");
+const norm = utils.norm;
 
 const Engine = @This();
 
@@ -17,7 +21,9 @@ const Stats = struct {
     swing: f32 = 0,
 };
 
-const free_threads = 2;
+const free_threads = 1;
+
+const force_exponent = -1;
 
 allocator: std.mem.Allocator,
 timer: std.time.Timer,
@@ -29,14 +35,14 @@ pool_size: usize,
 thread_pool: []std.Thread,
 stats_pool: []Stats,
 
-count: u64,
+tick_count: u64,
 
 stats: Stats,
 
 params: *const Params,
 
 pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Params) !*Engine {
-    const area = Quadtree.Area{};
+    const area = Area{};
 
     const self = try allocator.create(Engine);
     self.allocator = allocator;
@@ -51,13 +57,15 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 
     for (0..self.trees.len) |i| {
         const q = @as(u2, @intCast(i));
-        self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)));
+        self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), .{
+            .force = Force.create(.{ .r = force_exponent, .c = -params.repulsion / 500 }),
+        });
     }
 
     self.node_forces = try allocator.alloc(Params.Force, graph.node_count);
     for (self.node_forces) |*f| f.* = @splat(0);
 
-    self.count = 0;
+    self.tick_count = 0;
     self.stats = Stats{};
 
     for (graph.positions) |p| {
@@ -89,11 +97,14 @@ pub fn getBoundingSize(self: Engine) !f32 {
     return std.math.pow(f32, 2, @ceil(@log2(s)));
 }
 
-pub fn tick(self: *Engine) !void {
-    std.log.info("tick {d}", .{self.count});
+pub fn tick(self: *Engine) !u64 {
+    std.log.info("tick {d}", .{self.tick_count});
     self.timer.reset();
 
     try self.rebuildTrees();
+
+    for (&self.trees) |*tree|
+        tree.setForceParams(.{ .r = force_exponent, .c = -self.params.repulsion / 500 });
 
     const node_count = self.graph.node_count;
     for (0..self.pool_size) |pool_i| {
@@ -119,16 +130,17 @@ pub fn tick(self: *Engine) !void {
 
     std.log.info("applied forces in {d}ms", .{self.timer.lap() / 1_000_000});
 
-    self.count += 1;
-
     const total: f32 = @floatFromInt(self.graph.node_count);
 
     std.log.info("energy: {d}", .{self.stats.energy / total});
+
+    self.tick_count += 1;
+    return self.tick_count;
 }
 
 fn rebuildTrees(self: *Engine) !void {
     const s = try self.getBoundingSize();
-    const area = Quadtree.Area{ .s = s };
+    const area = Area{ .s = s };
 
     var pool: [4]std.Thread = undefined;
     for (0..4) |i| {
@@ -175,26 +187,18 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
 
         for (self.graph.outgoing_edges[i].items) |edge| {
             const t = self.graph.positions[edge.target];
-            var weight: f32 = edge.weight;
-            if (self.params.weighted_edges) {
-                weight *= mass;
-            }
-
-            f += self.params.getAttraction(p, t, weight);
+            f += self.params.getAttraction(p, t, edge.weight);
         }
 
         for (self.graph.incoming_edges[i].items) |edge| {
             const s = self.graph.positions[edge.source];
-            var weight: f32 = edge.weight;
-            if (self.params.weighted_edges) {
-                weight *= self.graph.z[edge.source];
-            }
-
-            f += self.params.getAttraction(p, s, weight);
+            f += self.params.getAttraction(p, s, edge.weight);
         }
 
+        // for (self.trees) |tree|
+        //     f += tree.getForce(self.params, p, mass);
         for (self.trees) |tree|
-            f += tree.getForce(self.params, p, mass);
+            f += tree.getForce(p, mass);
 
         f += center * self.params.getAttraction(p, .{ 0, 0 }, 1.0);
 

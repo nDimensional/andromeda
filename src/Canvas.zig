@@ -479,8 +479,6 @@ inline fn getScale(zoom: f32) f32 {
     const BASE = 32;
     const x = std.math.pow(f32, zoom + 1, 2) / C + BASE;
     return C / x;
-
-    // return 256 / ((std.math.pow(f32, zoom + 1, 2) - 1) / 256 + 256);
 }
 
 inline fn getScaleRadius(scale: f32) f32 {

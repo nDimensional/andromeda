@@ -8,8 +8,11 @@ pub fn build(b: *std.Build) !void {
     const build_options = b.addOptions();
     build_options.addOption([]const u8, "locale_dir", b.getInstallPath(.{ .custom = "share/locale" }, ""));
 
-    const sqlite_dep = b.dependency("sqlite", .{ .SQLITE_ENABLE_RTREE = true });
+    const sqlite_dep = b.dependency("sqlite", .{});
     const sqlite = sqlite_dep.module("sqlite");
+
+    const rtree_dep = b.dependency("rtree", .{});
+    const quadtree = rtree_dep.module("quadtree");
 
     const edgelist = b.addExecutable(.{
         .name = "edgelist",
@@ -39,6 +42,7 @@ pub fn build(b: *std.Build) !void {
     // exe.root_module.linkFramework("OpenGL", .{});
     exe.root_module.linkSystemLibrary("epoxy", .{});
 
+    exe.root_module.addImport("quadtree", quadtree);
     exe.root_module.addImport("sqlite", sqlite);
 
     const gobject = b.dependency("gobject", .{});
