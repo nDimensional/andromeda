@@ -8,7 +8,6 @@ const Graph = @import("../Graph.zig");
 
 const Params = @import("../Params.zig");
 const utils = @import("../utils.zig");
-const norm = utils.norm;
 
 const Engine = @This();
 
@@ -23,7 +22,7 @@ const Stats = struct {
 
 const free_threads = 1;
 
-const force_exponent = -1;
+const force_exponent = -2;
 
 allocator: std.mem.Allocator,
 timer: std.time.Timer,
@@ -200,7 +199,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
 
         f += center * self.params.getAttraction(p, .{ 0, 0 }, 1.0);
 
-        const swing = norm(self.node_forces[i] - f);
+        const swing = utils.norm(self.node_forces[i] - f);
         self.node_forces[i] = f;
 
         const k_s = 100;
@@ -216,6 +215,6 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
         stats.min_y = @min(stats.min_y, p[1]);
         stats.max_y = @max(stats.max_y, p[1]);
         stats.swing += self.graph.mass[i] * swing;
-        stats.energy += norm(f);
+        stats.energy += utils.norm(f);
     }
 }

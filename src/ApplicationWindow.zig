@@ -59,6 +59,7 @@ pub const ApplicationWindow = extern struct {
         repulsion: *LogScale,
         center: *LogScale,
         temperature: *LogScale,
+        weighted_nodes: *gtk.Switch,
 
         tick_button: *gtk.Button,
         start_button: *gtk.Button,
@@ -129,6 +130,7 @@ pub const ApplicationWindow = extern struct {
         gio.ActionMap.addAction(win.as(gio.ActionMap), open_action.as(gio.Action));
         win.private().open_action = open_action;
         win.private().open_action_id = gio.SimpleAction.signals.activate.connect(open_action, *ApplicationWindow, &handleOpen, win, .{});
+        open_action.setEnabled(1);
 
         const save_action = gio.SimpleAction.new("save", null);
         win.as(gio.ActionMap).addAction(save_action.as(gio.Action));
@@ -158,7 +160,7 @@ pub const ApplicationWindow = extern struct {
         win.as(gio.ActionMap).addAction(reload_action.as(gio.Action));
         win.private().reload_action = reload_action;
         win.private().reload_action_id = gio.SimpleAction.signals.activate.connect(reload_action, *ApplicationWindow, &handleReload, win, .{});
-        start_action.setEnabled(0);
+        reload_action.setEnabled(0);
 
         win.private().params = initial_params;
 
@@ -167,14 +169,18 @@ pub const ApplicationWindow = extern struct {
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
 
+        win.private().weighted_nodes.setActive(1);
+        win.private().weighted_nodes.as(gtk.Widget).setSensitive(1);
+
         win.private().start_action.setEnabled(0);
         win.private().stop_action.setEnabled(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
-        win.private().temperature.as(gtk.Widget).setSensitive(0);
         win.private().center.as(gtk.Widget).setSensitive(0);
+        win.private().temperature.as(gtk.Widget).setSensitive(0);
+
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
@@ -302,11 +308,15 @@ pub const ApplicationWindow = extern struct {
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
+        const weighted_nodes = win.private().weighted_nodes.getActive();
+
         const graph = try Graph.init(c_allocator, store, .{
             .progress_bar = win.private().progress_bar,
+            .weighted_nodes = (weighted_nodes != 0),
         });
 
         win.private().open_action.setEnabled(0);
+        win.private().weighted_nodes.as(gtk.Widget).setSensitive(0);
         win.private().graph = graph;
         graph.load(.{ .callback = &loadResultCallback, .callback_data = win });
     }
@@ -358,6 +368,8 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
 
+            class.bindTemplateChildPrivate("weighted_nodes", .{});
+
             class.bindTemplateChildPrivate("canvas", .{});
         }
 
@@ -395,8 +407,9 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
-    win.private().temperature.as(gtk.Widget).setSensitive(1);
     win.private().center.as(gtk.Widget).setSensitive(1);
+    win.private().temperature.as(gtk.Widget).setSensitive(1);
+    win.private().weighted_nodes.as(gtk.Widget).setSensitive(0);
 
     gtk.Stack.setVisibleChildName(win.private().stack, "status");
 }

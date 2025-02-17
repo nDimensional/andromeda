@@ -89,6 +89,29 @@
               </object>
             </child>
             <child>
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
+                <property name="hexpand">true</property>
+                <property name="margin-start">10</property>
+                <property name="margin-end">10</property>
+                <property name="margin-bottom">10</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property
+                      name="label"
+                    >Weight nodes by incoming degree</property>
+                    <property name="hexpand">true</property>
+                    <property name="halign">start</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkSwitch" id="weighted_nodes">
+                    <property name="halign">end</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
               <object class="GtkSeparator">
                 <property name="orientation">horizontal</property>
               </object>
@@ -164,6 +187,8 @@
                     </child>
                   </object>
                 </child>
+                <child>
+              </child>
               </object>
             </child>
             <child>
