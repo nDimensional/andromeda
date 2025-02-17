@@ -17,7 +17,3 @@ pub inline fn getAttraction(self: Self, a: Point, b: Point, weight: f32) Force {
     delta *= @splat(self.attraction * weight);
     return delta;
 }
-
-pub inline fn getMass(incoming_degree: f32) f32 {
-    return std.math.sqrt(incoming_degree) + 1;
-}

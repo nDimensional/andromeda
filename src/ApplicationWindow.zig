@@ -381,7 +381,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
     const graph = win.private().graph orelse return;
-    win.private().canvas.load(graph.z, graph.positions);
+    win.private().canvas.load(graph.mass, graph.positions);
 
     win.log("Finished loading.", .{});
     win.private().status = .Stopped;

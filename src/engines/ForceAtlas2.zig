@@ -159,7 +159,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     while (i < self.graph.node_count) : (i += 1) {
         const p = self.graph.positions[i];
         if (tree.area.contains(p)) {
-            const mass = self.graph.z[i];
+            const mass = self.graph.mass[i];
             try tree.insert(p, mass);
         }
     }
@@ -180,7 +180,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
             break;
         }
 
-        const mass = self.graph.z[i];
+        const mass = self.graph.mass[i];
         var p = self.graph.positions[i];
 
         var f: @Vector(2, f32) = .{ 0, 0 };
@@ -195,8 +195,6 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
             f += self.params.getAttraction(p, s, edge.weight);
         }
 
-        // for (self.trees) |tree|
-        //     f += tree.getForce(self.params, p, mass);
         for (self.trees) |tree|
             f += tree.getForce(p, mass);
 
@@ -217,8 +215,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
         stats.max_x = @max(stats.max_x, p[0]);
         stats.min_y = @min(stats.min_y, p[1]);
         stats.max_y = @max(stats.max_y, p[1]);
-        stats.swing += (self.graph.z[i] + 1) * swing;
-
+        stats.swing += self.graph.mass[i] * swing;
         stats.energy += norm(f);
     }
 }
