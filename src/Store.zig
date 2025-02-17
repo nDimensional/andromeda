@@ -22,9 +22,9 @@ pub const CountEdgesByTargetParams = struct { target: u32, min_source: u32, max_
 pub const CountEdgesByTargetResult = struct { count: usize };
 
 pub const SelectNodesParams = struct {};
-pub const SelectNodesResult = struct { id: u32, x: f32, y: f32 };
+pub const SelectNodesResult = struct { id: u32, x: f32, y: f32, mass: f32 = 1.0 };
 pub const SelectEdgesParams = struct {};
-pub const SelectEdgesResult = struct { source: u32, target: u32, weight: f32 = 1.0};
+pub const SelectEdgesResult = struct { source: u32, target: u32, weight: f32 = 1.0 };
 
 pub const CountParams = struct {};
 pub const CountResult = struct { count: usize };
@@ -72,14 +72,16 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
 
     var has_x: bool = false;
     var has_y: bool = false;
+    var has_mass: bool = false;
 
     {
-        try select_columns.bind(.{ .table = .{ .data = "nodes"} });
+        try select_columns.bind(.{ .table = .{ .data = "nodes" } });
         defer select_columns.reset();
 
         while (try select_columns.step()) |column| {
             if (std.mem.eql(u8, column.name.data, "x")) has_x = true;
             if (std.mem.eql(u8, column.name.data, "y")) has_y = true;
+            if (std.mem.eql(u8, column.name.data, "mass")) has_mass = true;
         }
     }
 
@@ -126,9 +128,15 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
         \\ SELECT count(*) as count FROM nodes
     );
 
-    store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
-        \\ SELECT rowid AS id, x, y FROM nodes ORDER BY rowid ASC
-    );
+    if (has_mass) {
+        store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
+            \\ SELECT rowid AS id, x, y, mass FROM nodes ORDER BY rowid ASC
+        );
+    } else {
+        store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
+            \\ SELECT rowid AS id, x, y FROM nodes ORDER BY rowid ASC
+        );
+    }
 
     if (has_weight) {
         store.select_edges = try store.db.prepare(SelectEdgesParams, SelectEdgesResult,
