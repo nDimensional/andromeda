@@ -57,6 +57,7 @@ pub const ApplicationWindow = extern struct {
 
         attraction: *LogScale,
         repulsion: *LogScale,
+        repulsion_exp: *gtk.SpinButton,
         center: *LogScale,
         temperature: *LogScale,
         weighted_nodes: *gtk.Switch,
@@ -123,6 +124,8 @@ pub const ApplicationWindow = extern struct {
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
+        // _ = gtk.SpinButton.signals.change_value.connect(win.private().repulsion_exp, *ApplicationWindow, &handleRepulsionExpChangeValue, win, .{});
+        _ = gtk.SpinButton.signals.value_changed.connect(win.private().repulsion_exp, *ApplicationWindow, &handleRepulsionExpValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
 
@@ -166,6 +169,15 @@ pub const ApplicationWindow = extern struct {
 
         win.private().attraction.setValue(initial_params.attraction * attraction_scale);
         win.private().repulsion.setValue(initial_params.repulsion * repulsion_scale);
+        const repulsion_exp_adjustment = gtk.Adjustment.new(1.0, 0.0, 3.0, 0.1, 1.0, 0.0);
+        win.private().repulsion_exp.setAdjustment(repulsion_exp_adjustment);
+        win.private().repulsion_exp.setValue(1);
+        // win.private().repulsion_exp.setRange(0, 3);
+        // win.private().repulsion_exp.setIncrements(0.1, 1);
+        win.private().repulsion_exp.setDigits(1);
+        win.private().repulsion_exp.setNumeric(1);
+        win.private().repulsion_exp.setSnapToTicks(1);
+        win.private().repulsion_exp.setClimbRate(0.1);
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
 
@@ -178,6 +190,7 @@ pub const ApplicationWindow = extern struct {
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
+        win.private().repulsion_exp.as(gtk.Widget).setSensitive(0);
         win.private().center.as(gtk.Widget).setSensitive(0);
         win.private().temperature.as(gtk.Widget).setSensitive(0);
 
@@ -238,6 +251,10 @@ pub const ApplicationWindow = extern struct {
 
     fn handleRepulsionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
         win.private().params.repulsion = @floatCast(value / repulsion_scale);
+    }
+
+    fn handleRepulsionExpValueChanged(button: *gtk.SpinButton, win: *ApplicationWindow) callconv(.C) void {
+        win.private().params.repulsion_exp = @floatCast(button.getValue());
     }
 
     fn handleCenterValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -365,6 +382,7 @@ pub const ApplicationWindow = extern struct {
 
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
+            class.bindTemplateChildPrivate("repulsion_exp", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
 
@@ -407,6 +425,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
+    win.private().repulsion_exp.as(gtk.Widget).setSensitive(1);
     win.private().center.as(gtk.Widget).setSensitive(1);
     win.private().temperature.as(gtk.Widget).setSensitive(1);
     win.private().weighted_nodes.as(gtk.Widget).setSensitive(0);

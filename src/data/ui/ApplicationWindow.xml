@@ -145,9 +145,21 @@
                     <property name="orientation">vertical</property>
                     <property name="hexpand">true</property>
                     <child>
-                      <object class="GtkLabel">
-                        <property name="label">Repulsion</property>
-                        <property name="halign">start</property>
+                      <object class="GtkBox">
+                        <property name="orientation">horizontal</property>
+                        <property name="hexpand">true</property>
+                        <child>
+                          <object class="GtkLabel">
+                            <property name="label">Repulsion</property>
+                            <property name="halign">start</property>
+                            <property name="hexpand">true</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkSpinButton" id="repulsion_exp">
+                            <property name="halign">end</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                     <child>

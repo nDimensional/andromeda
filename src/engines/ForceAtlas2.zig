@@ -22,7 +22,7 @@ const Stats = struct {
 
 const free_threads = 1;
 
-const force_exponent = -2;
+const force_exponent = -1;
 
 allocator: std.mem.Allocator,
 timer: std.time.Timer,
@@ -57,7 +57,7 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     for (0..self.trees.len) |i| {
         const q = @as(u2, @intCast(i));
         self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), .{
-            .force = Force.create(.{ .r = force_exponent, .c = -params.repulsion / 500 }),
+            .force = Force.create(.{ .r = -1 * self.params.repulsion_exp, .c = -params.repulsion / 500 }),
         });
     }
 
@@ -103,7 +103,7 @@ pub fn tick(self: *Engine) !u64 {
     try self.rebuildTrees();
 
     for (&self.trees) |*tree|
-        tree.setForceParams(.{ .r = force_exponent, .c = -self.params.repulsion / 500 });
+        tree.setForceParams(.{ .r = -1 * self.params.repulsion_exp, .c = -self.params.repulsion / 500 });
 
     const node_count = self.graph.node_count;
     for (0..self.pool_size) |pool_i| {
