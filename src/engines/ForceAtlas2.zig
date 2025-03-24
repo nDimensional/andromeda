@@ -4,9 +4,8 @@ const Quadtree = @import("quadtree").Quadtree;
 const Area = @import("quadtree").Area;
 const Force = @import("quadtree").Force;
 
-const Graph = @import("../Graph.zig");
-
 const Params = @import("../Params.zig");
+const Graph = @import("../Graph.zig");
 const utils = @import("../utils.zig");
 
 const Engine = @This();
