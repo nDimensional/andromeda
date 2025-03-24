@@ -9,9 +9,6 @@ const sqlite = @import("sqlite");
 
 const Progress = @import("Progress.zig");
 
-pub const SelectColumnsParams = struct { table: sqlite.Text };
-pub const SelectColumnsResult = struct { name: sqlite.Text, datatype: sqlite.Text };
-
 pub const SelectEdgesBySourceParams = struct { source: u32, min_target: u32, max_target: u32 };
 pub const SelectEdgesBySourceResult = struct { target: u32 };
 pub const SelectEdgesByTargetParams = struct { target: u32, min_source: u32, max_source: u32 };
@@ -64,58 +61,34 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
     store.allocator = allocator;
     store.db = try sqlite.Database.open(.{ .path = options.path, .create = false });
 
-    const select_columns = try store.db.prepare(SelectColumnsParams, SelectColumnsResult,
-        \\ SELECT name, type as datatype FROM pragma_table_info(:table)
-    );
+    const node_columns = try hasColumns(struct {
+        x: bool = false,
+        y: bool = false,
+        mass: bool = false,
+    }, store.db, "nodes");
 
-    defer select_columns.finalize();
-
-    var has_x: bool = false;
-    var has_y: bool = false;
-    var has_mass: bool = false;
-
-    {
-        try select_columns.bind(.{ .table = .{ .data = "nodes" } });
-        defer select_columns.reset();
-
-        while (try select_columns.step()) |column| {
-            if (std.mem.eql(u8, column.name.data, "x")) has_x = true;
-            if (std.mem.eql(u8, column.name.data, "y")) has_y = true;
-            if (std.mem.eql(u8, column.name.data, "mass")) has_mass = true;
-        }
-    }
-
-    if (!has_x) {
+    if (!node_columns.x) {
         std.log.err("missing column 'x' in nodes table", .{});
         return error.InvalidDatabase;
     }
 
-    if (!has_y) {
+    if (!node_columns.y) {
         std.log.err("missing column 'y' in nodes table", .{});
         return error.InvalidDatabase;
     }
 
-    var has_source: bool = false;
-    var has_target: bool = false;
-    var has_weight: bool = false;
+    const edge_columns = try hasColumns(struct {
+        source: bool = false,
+        target: bool = false,
+        weight: bool = false,
+    }, store.db, "edges");
 
-    {
-        try select_columns.bind(.{ .table = .{ .data = "edges" } });
-        defer select_columns.reset();
-
-        while (try select_columns.step()) |column| {
-            if (std.mem.eql(u8, column.name.data, "source")) has_source = true;
-            if (std.mem.eql(u8, column.name.data, "target")) has_target = true;
-            if (std.mem.eql(u8, column.name.data, "weight")) has_weight = true;
-        }
-    }
-
-    if (!has_source) {
+    if (!edge_columns.source) {
         std.log.err("missing column 'source' in edges table", .{});
         return error.InvalidDatabase;
     }
 
-    if (!has_target) {
+    if (!edge_columns.target) {
         std.log.err("missing column 'target' in edges table", .{});
         return error.InvalidDatabase;
     }
@@ -128,7 +101,7 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
         \\ SELECT count(*) as count FROM nodes
     );
 
-    if (has_mass) {
+    if (node_columns.mass) {
         store.select_nodes = try store.db.prepare(SelectNodesParams, SelectNodesResult,
             \\ SELECT rowid AS id, x, y, mass FROM nodes ORDER BY rowid ASC
         );
@@ -138,7 +111,7 @@ pub fn init(allocator: std.mem.Allocator, options: Options) !*Store {
         );
     }
 
-    if (has_weight) {
+    if (edge_columns.weight) {
         store.select_edges = try store.db.prepare(SelectEdgesParams, SelectEdgesResult,
             \\ SELECT source, target, weight FROM edges
         );
@@ -226,4 +199,39 @@ pub fn countEdgesInRange(self: *const Store, params: CountEdgesInRangeParams) !u
 
     const result = try self.count_edges_in_range.step() orelse return error.NoResults;
     return result.count;
+}
+
+fn hasColumns(comptime T: type, db: sqlite.Database, table: []const u8) !T {
+    const SelectColumnsParams = struct { table: sqlite.Text };
+    const SelectColumnsResult = struct { name: sqlite.Text, datatype: sqlite.Text };
+
+    const fields: []const std.builtin.Type.StructField = switch (@typeInfo(T)) {
+        .@"struct" => |info| info.fields,
+        else => @compileError("expected struct type with boolean fields"),
+    };
+
+    const select_columns = try db.prepare(SelectColumnsParams, SelectColumnsResult,
+        \\ SELECT name, type as datatype FROM pragma_table_info(:table)
+    );
+
+    defer select_columns.finalize();
+
+    var result: T = undefined;
+
+    try select_columns.bind(.{ .table = .{ .data = table } });
+    defer select_columns.reset();
+
+    while (try select_columns.step()) |column| {
+        inline for (fields) |field| {
+            switch (@typeInfo(field.type)) {
+                .bool => {},
+                else => @compileError("expected struct type with boolean fields"),
+            }
+
+            if (std.mem.eql(u8, column.name.data, field.name))
+                @field(result, field.name) = true;
+        }
+    }
+
+    return result;
 }

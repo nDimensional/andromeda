@@ -95,7 +95,7 @@ pub const LogScale = extern struct {
     }
 
     fn finalize(ls: *LogScale) callconv(.C) void {
-        Class.parent.as(gobject.Object.Class).finalize.?(ls.as(gobject.Object));
+        Class.parent.as(gobject.Object.Class).f_finalize.?(ls.as(gobject.Object));
     }
 
     fn handleValueChanged(range: *gtk.Range, ls: *LogScale) callconv(.C) void {

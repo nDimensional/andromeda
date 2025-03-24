@@ -56,6 +56,7 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 
     for (0..self.trees.len) |i| {
         const q = @as(u2, @intCast(i));
+        // self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), params, .{});
         self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), .{
             .force = Force.create(.{ .r = -1 * self.params.repulsion_exp, .c = -params.repulsion / 500 }),
         });

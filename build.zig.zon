@@ -1,6 +1,8 @@
 .{
-    .name = "andromeda",
+    .name = .andromeda,
+    .fingerprint = 0xf675ce18844b43ff,
     .version = "0.0.0",
+    .minimum_zig_version = "0.14.0",
     .paths = .{
         "src",
         "build.zig",
@@ -8,24 +10,32 @@
     },
     .dependencies = .{
         .rtree = .{
-            .url = "https://github.com/nDimensional/zig-rtree/archive/71a81afcfc35f03dadfc4f9f2134fa612c263e43.tar.gz",
-            .hash = "122027b69d26285fe1827690de377e49ecd7669bd560b675cdabd830253828fdfdb0",
+            .url = "https://github.com/nDimensional/zig-rtree/archive/refs/tags/v0.2.0.tar.gz",
+            .hash = "rtree-0.2.0-O-39mvqYAAD7eoek3UO4765YT0b4VwTPiDpJVJwHMGap",
         },
         .sqlite = .{
-            .url = "https://github.com/nDimensional/zig-sqlite/archive/3929e173f7b03d82c7f07e765c46cdaf6167f3d5.tar.gz",
-            .hash = "1220aec89b68a962477113406d38ae37d7a04f3bf8b7971ae20a354d2f207e28f353",
+            .url = "https://github.com/nDimensional/zig-sqlite/archive/refs/tags/v0.2.1-3490100.tar.gz",
+            .hash = "sqlite-0.2.1-3490100-djiKTjV8AADEHLnzb_6K06fuioSVDUNJRlxX1hc_RzPl",
         },
         .xml = .{
-            .url = "git+https://github.com/ianprime0509/zig-xml?ref=main#0747fa10b28ade9a8516bc5b122dcad997bd8fa7",
-            .hash = "1220fcb9b8da8bcfdaa18c81678c6b5cf41d63a2bf9fde7551b4390279cc473a2520",
+            .url = "https://github.com/ianprime0509/zig-xml/archive/7c1697f35065ab54088d268ef52abf4c53dc7d62.tar.gz",
+            .hash = "xml-0.1.0-ZTbP3_47AgClPn_55oc3J5FaewBcphmzZifp-vLd5WpG",
         },
         .gobject = .{
-            .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.2.1/bindings-gnome46.tar.zst",
-            .hash = "12203bb2843d2b9db725edaaa9868a817e60dd71fba53f1e7b04b49d2d5bae90c057",
+            .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.3.0/bindings-gnome46.tar.zst",
+            .hash = "gobject-0.3.0-Skun7HdDcgEIV096UXa3skZJm8udpABYq1PDPw8GBrzU",
         },
+        // .gobject = .{
+        //     .url = "https://github.com/ianprime0509/zig-gobject/archive/25fffb01af86f4a43f068917fa65545a9791b32d.tar.gz",
+        //     .hash = "gobject_codegen-0.2.2-B33qzRlHBABghDPdAUbG9oE9iAeCqBy_04rjZkLuszWL",
+        // },
         .libintl = .{
-            .url = "git+https://github.com/ianprime0509/zig-libintl?ref=main#0c436aa63c31bb8ad5d7d59800638f784e1e04a5",
-            .hash = "1220e1f1576da3188a8749940f836cfb4f858ee3455660b05c67984ddc29cf63956e",
+            .url = "https://github.com/ianprime0509/zig-libintl/archive/7e47fbc1a440ddb397cea250acc3bf474e6c4323.tar.gz",
+            .hash = "libintl-0.0.0-ZIc29-glAAAkl5EQRCaI0_Qc5JHTLVhzgs6wQ8tJQmNt",
         },
+        // .libintl = .{
+        //     .url = "git+https://github.com/ianprime0509/zig-libintl?ref=main#0c436aa63c31bb8ad5d7d59800638f784e1e04a5",
+        //     .hash = "1220e1f1576da3188a8749940f836cfb4f858ee3455660b05c67984ddc29cf63956e",
+        // },
     },
 }

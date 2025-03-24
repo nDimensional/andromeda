@@ -194,7 +194,6 @@ pub const ApplicationWindow = extern struct {
         win.private().center.as(gtk.Widget).setSensitive(0);
         win.private().temperature.as(gtk.Widget).setSensitive(0);
 
-
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
         win.private().render_source_id = null;
@@ -224,7 +223,7 @@ pub const ApplicationWindow = extern struct {
         if (win.private().graph) |graph| graph.deinit();
         if (win.private().store) |store| store.deinit();
 
-        Class.parent.as(gobject.Object.Class).finalize.?(win.as(gobject.Object));
+        Class.parent.as(gobject.Object.Class).f_finalize.?(win.as(gobject.Object));
     }
 
     fn private(win: *ApplicationWindow) *Private {

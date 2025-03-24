@@ -4,7 +4,7 @@ Andromeda is a high-performance force-directed graph layout engine written in Zi
 
 ![](https://assets.joelgustafson.com/2024-11-12/graph-1e6.png)
 
-Zig version `0.13.0`.
+Zig version `0.14.0`.
 
 ```
 $ zig build run
@@ -14,14 +14,13 @@ Your SQLite database should have a schema that looks like this:
 
 ```sql
 CREATE TABLE nodes(
+  id INTEGER PRIMARY KEY NOT NULL,
   x FLOAT NOT NULL DEFAULT 0,
   y FLOAT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE edges(
-  source INTEGER NOT NULL REFERENCES nodes(rowid),
-  target INTEGER NOT NULL REFERENCES nodes(rowid)
+  source INTEGER NOT NULL REFERENCES nodes(id),
+  target INTEGER NOT NULL REFERENCES nodes(id)
 );
 ```
-
-Your nodes must have a unique integer `rowid`, which is the default behavior for all tables in SQLite.

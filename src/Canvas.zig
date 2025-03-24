@@ -117,7 +117,7 @@ pub const Canvas = extern struct {
     }
 
     fn finalize(ls: *Canvas) callconv(.C) void {
-        Class.parent.as(gobject.Object.Class).finalize.?(ls.as(gobject.Object));
+        Class.parent.as(gobject.Object.Class).f_finalize.?(ls.as(gobject.Object));
     }
 
     fn private(ls: *Canvas) *Private {
