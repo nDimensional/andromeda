@@ -11,7 +11,7 @@
     .dependencies = .{
         .rtree = .{
             .url = "https://github.com/nDimensional/zig-rtree/archive/refs/tags/v0.2.0.tar.gz",
-            .hash = "rtree-0.2.0-O-39mvqYAAD7eoek3UO4765YT0b4VwTPiDpJVJwHMGap",
+            .hash = "rtree-0.2.0-O-39moyUAACwg6MbBfhOYZGV4yIbOMYABF9HCXECZyRV",
         },
         .sqlite = .{
             .url = "https://github.com/nDimensional/zig-sqlite/archive/refs/tags/v0.2.1-3490100.tar.gz",
