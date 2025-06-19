@@ -14,21 +14,6 @@ pub fn build(b: *std.Build) !void {
     const rtree_dep = b.dependency("rtree", .{});
     const quadtree = rtree_dep.module("quadtree");
 
-    const edgelist = b.addExecutable(.{
-        .name = "edgelist",
-        .root_source_file = b.path("./edgelist/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    edgelist.root_module.addImport("sqlite", sqlite);
-
-    b.installArtifact(edgelist);
-
-    const edgelist_artifact = b.addRunArtifact(edgelist);
-    const edgelist_step = b.step("run-edgelist", "Run edgelist");
-    edgelist_step.dependOn(&edgelist_artifact.step);
-
     const exe = b.addExecutable(.{
         .name = "andromeda",
         .root_source_file = b.path("./src/main.zig"),
