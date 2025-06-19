@@ -14,8 +14,8 @@
             .hash = "rtree-0.2.0-O-39moyUAACwg6MbBfhOYZGV4yIbOMYABF9HCXECZyRV",
         },
         .sqlite = .{
-            .url = "https://github.com/nDimensional/zig-sqlite/archive/refs/tags/v0.2.1-3490100.tar.gz",
-            .hash = "sqlite-0.2.1-3490100-djiKTjV8AADEHLnzb_6K06fuioSVDUNJRlxX1hc_RzPl",
+            .url = "https://github.com/nDimensional/zig-sqlite/archive/refs/tags/v0.2.1-3500000.tar.gz",
+            .hash = "sqlite-0.2.1-3500000-djiKTjV8AADR09_68GCuPY_jsvrXyQT0KEvZ1kJeyq_7",
         },
         .xml = .{
             .url = "https://github.com/ianprime0509/zig-xml/archive/7c1697f35065ab54088d268ef52abf4c53dc7d62.tar.gz",
@@ -25,17 +25,9 @@
             .url = "https://github.com/ianprime0509/zig-gobject/releases/download/v0.3.0/bindings-gnome46.tar.zst",
             .hash = "gobject-0.3.0-Skun7HdDcgEIV096UXa3skZJm8udpABYq1PDPw8GBrzU",
         },
-        // .gobject = .{
-        //     .url = "https://github.com/ianprime0509/zig-gobject/archive/25fffb01af86f4a43f068917fa65545a9791b32d.tar.gz",
-        //     .hash = "gobject_codegen-0.2.2-B33qzRlHBABghDPdAUbG9oE9iAeCqBy_04rjZkLuszWL",
-        // },
         .libintl = .{
             .url = "https://github.com/ianprime0509/zig-libintl/archive/7e47fbc1a440ddb397cea250acc3bf474e6c4323.tar.gz",
             .hash = "libintl-0.0.0-ZIc29-glAAAkl5EQRCaI0_Qc5JHTLVhzgs6wQ8tJQmNt",
         },
-        // .libintl = .{
-        //     .url = "git+https://github.com/ianprime0509/zig-libintl?ref=main#0c436aa63c31bb8ad5d7d59800638f784e1e04a5",
-        //     .hash = "1220e1f1576da3188a8749940f836cfb4f858ee3455660b05c67984ddc29cf63956e",
-        // },
     },
 }
