@@ -69,6 +69,7 @@ pub const ApplicationWindow = extern struct {
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
+        canvas_info: *gtk.Label,
 
         canvas: *Canvas,
 
@@ -196,6 +197,9 @@ pub const ApplicationWindow = extern struct {
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
+        // Set up canvas update callback for real-time position/zoom updates
+        win.private().canvas.setUpdateCallback(&handleCanvasUpdate, win);
+
         win.private().render_source_id = null;
         win.private().metrics_source_id = null;
         win.private().metrics.count = 0;
@@ -240,6 +244,7 @@ pub const ApplicationWindow = extern struct {
 
         win.tick(engine) catch |err| @panic(@errorName(err));
         win.updateMetrics() catch |err| @panic(@errorName(err));
+        win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 
         win.private().canvas.update(graph.positions);
     }
@@ -366,6 +371,17 @@ pub const ApplicationWindow = extern struct {
         win.private().energy.setMarkup(energy_markup);
     }
 
+    fn updateCanvasInfo(win: *ApplicationWindow) !void {
+        const canvas_info = win.private().canvas.getCanvasInfo();
+        const canvas_markup = try std.fmt.bufPrintZ(&label_buffer, "Position: ({d:.2}, {d:.2}) | Zoom: {d:.1}", .{ canvas_info.offset[0], canvas_info.offset[1], canvas_info.zoom });
+        win.private().canvas_info.setMarkup(canvas_markup);
+    }
+
+    fn handleCanvasUpdate(user_data: ?*anyopaque) callconv(.C) void {
+        const win: *ApplicationWindow = @alignCast(@ptrCast(user_data orelse return));
+        win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+    }
+
     fn log(win: *ApplicationWindow, comptime format: []const u8, args: anytype) void {
         const writer = win.private().stdout.writer();
         writer.print(format, args) catch |err| @panic(@errorName(err));
@@ -393,6 +409,7 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("progress_bar", .{});
             class.bindTemplateChildPrivate("ticker", .{});
             class.bindTemplateChildPrivate("energy", .{});
+            class.bindTemplateChildPrivate("canvas_info", .{});
 
             class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});
@@ -430,6 +447,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     const graph = win.private().graph orelse return;
     win.private().canvas.load(graph.mass, graph.positions);
+    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 
     win.log("Finished loading.", .{});
     win.private().status = .Stopped;
@@ -454,6 +472,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 fn handleMetricsUpdate(user_data: ?*anyopaque) callconv(.C) c_int {
     const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
     win.updateMetrics() catch |err| @panic(@errorName(err));
+    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
     return 1;
 }
 
@@ -480,6 +499,7 @@ fn handleRender(user_data: ?*anyopaque) callconv(.C) c_int {
         if (win.private().dirty) {
             win.private().dirty = false;
             win.private().canvas.update(graph.positions);
+            win.updateCanvasInfo() catch |err| @panic(@errorName(err));
         }
     }
 
@@ -527,6 +547,7 @@ fn handleRandomize(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *Applicat
     const s = std.math.sqrt(@as(f32, @floatFromInt(graph.node_count)));
     graph.randomize(s * 100);
     win.private().canvas.update(graph.positions);
+    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
     win.log("Randomized.", .{});
 }
 
@@ -583,4 +604,5 @@ fn handleReload(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *Application
 
     win.private().dirty = false;
     win.private().canvas.update(graph.positions);
+    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 }

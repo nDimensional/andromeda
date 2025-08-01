@@ -39,6 +39,8 @@ const Data = struct {
     zoom: f32 = 0,
     scale: f32 = 1,
     scale_radius: f32 = 1,
+    update_callback: ?*const fn (?*anyopaque) callconv(.C) void = null,
+    update_callback_data: ?*anyopaque = null,
 };
 
 pub const Canvas = extern struct {
@@ -168,6 +170,17 @@ pub const Canvas = extern struct {
         c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, byte_len, positions.ptr);
         c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
         area.queueRender();
+    }
+
+    pub fn getCanvasInfo(self: *Canvas) struct { offset: @Vector(2, f32), zoom: f32 } {
+        const data = self.private().data orelse return .{ .offset = .{ 0, 0 }, .zoom = 0 };
+        return .{ .offset = data.offset, .zoom = data.zoom };
+    }
+
+    pub fn setUpdateCallback(self: *Canvas, callback: ?*const fn (?*anyopaque) callconv(.C) void, user_data: ?*anyopaque) void {
+        const data = self.private().data orelse return;
+        data.update_callback = callback;
+        data.update_callback_data = user_data;
     }
 
     pub const Class = extern struct {
@@ -443,6 +456,7 @@ fn handleMouseDrag(gesture: *gtk.GestureDrag, offset_x: f64, offset_y: f64, data
     };
 
     data.offset = data.anchor + offset;
+    if (data.update_callback) |callback| callback(data.update_callback_data);
     area.queueRender();
 }
 
@@ -456,6 +470,7 @@ fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, d
     data.scale = getScale(data.zoom);
     data.scale_radius = getScaleRadius(data.scale);
 
+    if (data.update_callback) |callback| callback(data.update_callback_data);
     const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
     area.queueRender();
 
@@ -473,6 +488,7 @@ fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) v
     _ = data;
     _ = scale;
 }
+
 
 inline fn getScale(zoom: f32) f32 {
     const C = 256;
