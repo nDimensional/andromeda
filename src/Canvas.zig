@@ -123,10 +123,10 @@ pub const Canvas = extern struct {
         return gobject.ext.impl_helpers.getPrivate(ls, Private, Private.offset);
     }
 
-    pub fn load(self: *Canvas, _: []const f32, position: []const @Vector(2, f32)) !void {
+    pub fn load(self: *Canvas, positions: []const @Vector(2, f32)) !void {
         const area = self.private().area;
         const data = self.private().data orelse return;
-        data.count = @intCast(position.len);
+        data.count = @intCast(positions.len);
 
         area.makeCurrent();
         if (area.getError()) |err| {
@@ -155,8 +155,8 @@ pub const Canvas = extern struct {
         data.index_permutation = index_permutation;
 
         // Reorder positions according to permutation
-        for (data.index_permutation.?, 0..) |original_idx, new_idx| {
-            data.reordered_positions.?[new_idx] = position[original_idx];
+        for (index_permutation, 0..) |original_idx, new_idx| {
+            reordered_positions[new_idx] = positions[original_idx];
         }
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
@@ -530,7 +530,7 @@ inline fn getLoD(scale: f32, total: usize) usize {
     const t: f32 = @floatFromInt(total);
     const p: f32 = 2 * @sqrt(scale);
     const r: usize = @intFromFloat(@round(p * t));
-    return @min(r, total, 1_000_000);
+    return @min(@max(r, 1_000_000), total);
 }
 
 inline fn getScale(zoom: f32) f32 {
