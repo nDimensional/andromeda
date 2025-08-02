@@ -1,6 +1,6 @@
 #version 320 es
-precision mediump float;
-precision mediump int;
+precision highp float;
+precision highp int;
 
 in vec2 aPos;
 in vec2 aOffset;
