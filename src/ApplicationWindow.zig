@@ -69,7 +69,8 @@ pub const ApplicationWindow = extern struct {
 
         ticker: *gtk.Label,
         energy: *gtk.Label,
-        canvas_info: *gtk.Label,
+        canvas_position: *gtk.Label,
+        canvas_zoom: *gtk.Label,
 
         canvas: *Canvas,
 
@@ -354,8 +355,12 @@ pub const ApplicationWindow = extern struct {
 
     fn updateCanvasInfo(win: *ApplicationWindow) !void {
         const canvas_info = win.private().canvas.getCanvasInfo();
-        const canvas_markup = try std.fmt.bufPrintZ(&label_buffer, "Position: ({d:.2}, {d:.2}) | Zoom: {d:.1}", .{ canvas_info.offset[0], canvas_info.offset[1], canvas_info.zoom });
-        win.private().canvas_info.setMarkup(canvas_markup);
+
+        const position_markup = try std.fmt.bufPrintZ(&label_buffer, "Position: ({d:.0}, {d:.0})", .{ canvas_info.offset[0], canvas_info.offset[1] });
+        win.private().canvas_position.setMarkup(position_markup);
+
+        const zoom_markup = try std.fmt.bufPrintZ(&label_buffer, "Zoom: {d: >5.0}", .{canvas_info.zoom});
+        win.private().canvas_zoom.setMarkup(zoom_markup);
     }
 
     fn handleCanvasUpdate(user_data: ?*anyopaque) callconv(.C) void {
@@ -390,7 +395,8 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("progress_bar", .{});
             class.bindTemplateChildPrivate("ticker", .{});
             class.bindTemplateChildPrivate("energy", .{});
-            class.bindTemplateChildPrivate("canvas_info", .{});
+            class.bindTemplateChildPrivate("canvas_position", .{});
+            class.bindTemplateChildPrivate("canvas_zoom", .{});
 
             class.bindTemplateChildPrivate("tick_button", .{});
             class.bindTemplateChildPrivate("start_button", .{});

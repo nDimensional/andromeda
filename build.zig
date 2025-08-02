@@ -38,6 +38,7 @@ pub fn build(b: *std.Build) !void {
     exe.root_module.addImport("gio", gobject.module("gio2"));
     exe.root_module.addImport("gdk", gobject.module("gdk4"));
     exe.root_module.addImport("gtk", gobject.module("gtk4"));
+    exe.root_module.addImport("pango", gobject.module("pango1"));
     exe.root_module.addImport("libintl", libintl.module("libintl"));
 
     b.installArtifact(exe);

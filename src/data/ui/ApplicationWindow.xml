@@ -267,8 +267,20 @@
                           </object>
                         </child>
                         <child>
-                          <object class="GtkLabel" id="canvas_info">
-                            <property name="halign">start</property>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="hexpand">true</property>
+                            <child>
+                              <object class="GtkLabel" id="canvas_position">
+                                <property name="halign">start</property>
+                                <property name="hexpand">true</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="canvas_zoom">
+                                <property name="halign">end</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
