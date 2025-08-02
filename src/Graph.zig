@@ -14,11 +14,6 @@ const utils = @import("utils.zig");
 
 const Graph = @This();
 
-pub const Node = struct {
-    mass: f32,
-    position: @Vector(2, f32),
-};
-
 const OutgoingEdge = struct { target: u32, weight: f32 };
 const IncomingEdge = struct { source: u32, weight: f32 };
 
@@ -40,7 +35,6 @@ edge_count: usize,
 outgoing_edges: []std.ArrayListUnmanaged(OutgoingEdge),
 incoming_edges: []std.ArrayListUnmanaged(IncomingEdge),
 
-mass: []f32,
 positions: []@Vector(2, f32),
 node_index: std.AutoArrayHashMap(u32, u32),
 
@@ -68,15 +62,11 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     graph.positions = try allocator.alloc(@Vector(2, f32), graph.node_count);
     for (graph.positions) |*p| p.* = .{ 0, 0 };
 
-    graph.mass = try allocator.alloc(f32, graph.node_count);
-    for (graph.mass) |*z| z.* = 1.0;
-
     return graph;
 }
 
 pub fn deinit(self: *Graph) void {
     self.node_index.deinit();
-    self.allocator.free(self.mass);
     self.allocator.free(self.positions);
 
     for (self.outgoing_edges) |*list| list.deinit(self.allocator);
@@ -151,7 +141,6 @@ fn loadNodes(self: *Graph, cancellable: ?*gio.Cancellable) !void {
 
         self.node_index.putAssumeCapacityNoClobber(node.id, @intCast(i));
         self.positions[i] = .{ node.x, node.y };
-        self.mass[i] = node.mass;
 
         if (i % batch_size == 0) {
             const value = @as(f64, @floatFromInt(i)) / total;
@@ -184,14 +173,6 @@ fn loadEdges(self: *Graph, cancellable: ?*gio.Cancellable) !void {
         if (n % batch_size == 0) {
             const value = @as(f64, @floatFromInt(n)) / total;
             self.progress.setValue(value);
-        }
-    }
-
-    if (self.weighted_nodes) {
-        std.log.info("scaling node mass by incoming degree", .{});
-        for (0..self.node_count) |i| {
-            const incoming_degree = self.incoming_edges[i].items.len;
-            self.mass[i] *= utils.getMass(incoming_degree);
         }
     }
 }

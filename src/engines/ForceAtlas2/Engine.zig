@@ -1,12 +1,13 @@
 const std = @import("std");
 
-const Quadtree = @import("quadtree").Quadtree;
-const Area = @import("quadtree").Area;
-const Force = @import("quadtree").Force;
+const quadtree = @import("quadtree.zig");
+const Quadtree = quadtree.Quadtree;
+const Area = quadtree.Area;
+const Force = quadtree.Force;
 
-const Params = @import("../Params.zig");
-const Graph = @import("../Graph.zig");
-const utils = @import("../utils.zig");
+const Params = @import("../../Params.zig");
+const Graph = @import("../../Graph.zig");
+const utils = @import("../../utils.zig");
 
 const Engine = @This();
 
@@ -32,6 +33,7 @@ node_forces: []Params.Force,
 pool_size: usize,
 thread_pool: []std.Thread,
 stats_pool: []Stats,
+mass: []f32,
 
 tick_count: u64,
 
@@ -43,15 +45,27 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     const area = Area{};
 
     const self = try allocator.create(Engine);
+    errdefer allocator.destroy(self);
+
     self.allocator = allocator;
     self.graph = graph;
     self.params = params;
     self.timer = try std.time.Timer.start();
 
+    self.mass = try allocator.alloc(f32, graph.node_count);
+    errdefer allocator.free(self.mass);
+
+    for (graph.incoming_edges, 0..) |incoming_edges, i|
+        self.mass[i] = utils.getMass(incoming_edges.items.len);
+
     const cpu_count = try std.Thread.getCpuCount();
     self.pool_size = @max(1 + free_threads, cpu_count) - free_threads;
+
     self.thread_pool = try allocator.alloc(std.Thread, self.pool_size);
+    errdefer allocator.free(self.thread_pool);
+
     self.stats_pool = try allocator.alloc(Stats, self.pool_size);
+    errdefer allocator.free(self.stats_pool);
 
     for (0..self.trees.len) |i| {
         const q = @as(u2, @intCast(i));
@@ -62,6 +76,7 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     }
 
     self.node_forces = try allocator.alloc(Params.Force, graph.node_count);
+    errdefer allocator.free(self.node_forces);
     for (self.node_forces) |*f| f.* = @splat(0);
 
     self.tick_count = 0;
@@ -158,7 +173,7 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     while (i < self.graph.node_count) : (i += 1) {
         const p = self.graph.positions[i];
         if (tree.area.contains(p)) {
-            const mass = self.graph.mass[i];
+            const mass = self.mass[i];
             try tree.insert(p, mass);
         }
     }
@@ -179,7 +194,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
             break;
         }
 
-        const mass = self.graph.mass[i];
+        const mass = self.mass[i];
         var p = self.graph.positions[i];
 
         var f: @Vector(2, f32) = .{ 0, 0 };
@@ -214,7 +229,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
         stats.max_x = @max(stats.max_x, p[0]);
         stats.min_y = @min(stats.min_y, p[1]);
         stats.max_y = @max(stats.max_y, p[1]);
-        stats.swing += self.graph.mass[i] * swing;
+        stats.swing += self.mass[i] * swing;
         stats.energy += utils.norm(f);
     }
 }

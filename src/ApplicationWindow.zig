@@ -20,7 +20,7 @@ const LogScale = @import("LogScale.zig").LogScale;
 const Canvas = @import("Canvas.zig").Canvas;
 const Params = @import("Params.zig");
 
-const Engine = @import("engines/ForceAtlas2.zig");
+const Engine = @import("engines/ForceAtlas2/Engine.zig");
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 
@@ -313,7 +313,7 @@ pub const ApplicationWindow = extern struct {
         if (win.private().status == .Running) {
             win.private().status = .Stopping;
             if (win.private().engine_thread) |engine_thread| engine_thread.detach();
-            
+
             const ctx = glib.MainContext.default();
             if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
             if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
@@ -452,7 +452,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     const win: *ApplicationWindow = @alignCast(@ptrCast(data));
 
     const graph = win.private().graph orelse return;
-    win.private().canvas.load(graph.mass, graph.positions) catch |err| @panic(@errorName(err));
+    win.private().canvas.load(graph.positions) catch |err| @panic(@errorName(err));
     win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 
     win.log("Finished loading.", .{});
