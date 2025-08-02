@@ -41,6 +41,10 @@ const Data = struct {
     scale_radius: f32 = 1,
     update_callback: ?*const fn (?*anyopaque) callconv(.C) void = null,
     update_callback_data: ?*anyopaque = null,
+    index_buffer: c.GLuint = 0,
+    index_permutation: []u32 = &.{},
+    render_count: u32 = 0,
+    reordered_positions: []@Vector(2, f32) = &.{},
 };
 
 pub const Canvas = extern struct {
@@ -141,11 +145,46 @@ pub const Canvas = extern struct {
             return;
         }
 
+        // Generate index permutation for LOD
+        if (data.index_permutation.len > 0) {
+            allocator.free(data.index_permutation);
+        }
+        if (data.reordered_positions.len > 0) {
+            allocator.free(data.reordered_positions);
+        }
+
+        data.index_permutation = allocator.alloc(u32, data.count) catch |err| {
+            std.log.err("failed to allocate index permutation: {any}", .{err});
+            return;
+        };
+        data.reordered_positions = allocator.alloc(@Vector(2, f32), data.count) catch |err| {
+            std.log.err("failed to allocate reordered positions: {any}", .{err});
+            return;
+        };
+
+        for (data.index_permutation, 0..) |*idx, i| {
+            idx.* = @intCast(i);
+        }
+        var prng = std.Random.Xoshiro256.init(0);
+        prng.random().shuffle(u32, data.index_permutation);
+
+        // Create reordered arrays according to permutation
+        const reordered_sizes = allocator.alloc(f32, data.count) catch |err| {
+            std.log.err("failed to allocate reordered sizes: {any}", .{err});
+            return;
+        };
+        defer allocator.free(reordered_sizes);
+
+        for (data.index_permutation, 0..) |original_idx, new_idx| {
+            reordered_sizes[new_idx] = sizes[original_idx];
+            data.reordered_positions[new_idx] = positions[original_idx];
+        }
+
         c.glBindBuffer(c.GL_ARRAY_BUFFER, data.sizes);
-        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(f32) * sizes.len), sizes.ptr, c.GL_DYNAMIC_DRAW);
+        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(f32) * reordered_sizes.len), reordered_sizes.ptr, c.GL_DYNAMIC_DRAW);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
-        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(@Vector(2, f32)) * positions.len), positions.ptr, c.GL_DYNAMIC_DRAW);
+        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(@Vector(2, f32)) * data.reordered_positions.len), data.reordered_positions.ptr, c.GL_DYNAMIC_DRAW);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
         area.queueRender();
@@ -164,11 +203,23 @@ pub const Canvas = extern struct {
             return;
         }
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
+        // Reorder positions according to permutation
+        if (data.index_permutation.len > 0 and data.reordered_positions.len > 0) {
+            for (data.index_permutation, 0..) |original_idx, new_idx| {
+                data.reordered_positions[new_idx] = positions[original_idx];
+            }
 
-        const byte_len: i64 = @intCast(@sizeOf(@Vector(2, f32)) * positions.len);
-        c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, byte_len, positions.ptr);
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
+            const byte_len: i64 = @intCast(@sizeOf(@Vector(2, f32)) * data.reordered_positions.len);
+            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, byte_len, data.reordered_positions.ptr);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+        } else {
+            // Fallback to original behavior if no permutation exists
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, data.positions);
+            const byte_len: i64 = @intCast(@sizeOf(@Vector(2, f32)) * positions.len);
+            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, byte_len, positions.ptr);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+        }
         area.queueRender();
     }
 
@@ -237,12 +288,14 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     var vbo: c.GLuint = undefined;
     var positions: c.GLuint = undefined;
     var sizes: c.GLuint = undefined;
+    var index_buffer: c.GLuint = undefined;
 
     // Create VAO and VBO
     c.glGenVertexArrays(1, &vao);
     c.glGenBuffers(1, &vbo);
     c.glGenBuffers(1, &positions);
     c.glGenBuffers(1, &sizes);
+    c.glGenBuffers(1, &index_buffer);
 
     c.glBindVertexArray(vao);
 
@@ -278,6 +331,7 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     data.vbo = vbo;
     data.positions = positions;
     data.sizes = sizes;
+    data.index_buffer = index_buffer;
     data.resolution_location = resolution_location;
     data.offset_location = offset_location;
     data.scale_location = scale_location;
@@ -305,7 +359,18 @@ fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     c.glDeleteBuffers(1, &data.vbo);
     c.glDeleteBuffers(1, &data.positions);
     c.glDeleteBuffers(1, &data.sizes);
+    c.glDeleteBuffers(1, &data.index_buffer);
     c.glDeleteProgram(data.shader_program);
+
+    // Clean up allocated memory
+    if (data.index_permutation.len > 0) {
+        allocator.free(data.index_permutation);
+        data.index_permutation = &.{};
+    }
+    if (data.reordered_positions.len > 0) {
+        allocator.free(data.reordered_positions);
+        data.reordered_positions = &.{};
+    }
 }
 
 fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C) c_int {
@@ -330,11 +395,15 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     c.glUniform1f(data.scale_radius_location, data.scale_radius);
     c.glUniform1f(data.device_pixel_ratio_location, @floatFromInt(scale_factor));
 
+    // Calculate LOD and set render count
+    const lod_count = getLoD(data.zoom, data.count);
+    data.render_count = @intCast(lod_count);
+
     // Bind the VAO
     c.glBindVertexArray(data.vao);
 
-    // Draw the triangle
-    c.glDrawArraysInstanced(c.GL_TRIANGLE_FAN, 0, 4, @intCast(data.count));
+    // Draw using instanced rendering - render render_count instances
+    c.glDrawArraysInstanced(c.GL_TRIANGLE_FAN, 0, 4, @intCast(data.render_count));
 
     // Unbind the VAO
     c.glBindVertexArray(0);
@@ -489,6 +558,10 @@ fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) v
     _ = scale;
 }
 
+inline fn getLoD(zoom: f32, total: usize) usize {
+    _ = zoom; // unused for now
+    return total; // render all nodes initially
+}
 
 inline fn getScale(zoom: f32) f32 {
     const C = 256;
