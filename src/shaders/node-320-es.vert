@@ -4,7 +4,6 @@ precision highp int;
 
 in vec2 aPos;
 in vec2 aOffset;
-in float aDegree;
 
 uniform vec2 uResolution;
 uniform vec2 uOffset;
@@ -20,6 +19,6 @@ void main() {
     gl_Position = vec4(v / uResolution, 0.0, 1.0);
     vCenter = (uResolution * uDevicePixelRatio / 2.0) + c;
 
-    float r = 20.0 + sqrt(aDegree);
+    float r = 20.0;
     vRadius = max(2.0, uScale * r);
 }
