@@ -2,3 +2,4 @@
 .vscode/
 .zig-cache/
 zig-out/
+data/
