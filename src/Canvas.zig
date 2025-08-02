@@ -558,10 +558,13 @@ fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) v
     _ = scale;
 }
 
+<<<<<<< HEAD
 inline fn getLoD(zoom: f32, total: usize) usize {
     _ = zoom; // unused for now
     return total; // render all nodes initially
 }
+=======
+>>>>>>> main
 
 inline fn getScale(zoom: f32) f32 {
     const C = 256;

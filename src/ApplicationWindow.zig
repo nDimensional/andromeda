@@ -309,9 +309,28 @@ pub const ApplicationWindow = extern struct {
     }
 
     fn openFile(win: *ApplicationWindow, path: [*:0]const u8) !void {
+        // Stop any running engine first
+        if (win.private().status == .Running) {
+            win.private().status = .Stopping;
+            if (win.private().engine_thread) |engine_thread| engine_thread.detach();
+            
+            const ctx = glib.MainContext.default();
+            if (win.private().render_source_id) |id| ctx.findSourceById(id).destroy();
+            if (win.private().metrics_source_id) |id| ctx.findSourceById(id).destroy();
+            win.private().render_source_id = null;
+            win.private().metrics_source_id = null;
+        }
+
         win.private().status = .Loading;
         win.private().path = path;
 
+        // Clean up existing graph
+        if (win.private().graph) |graph| {
+            graph.deinit();
+            win.private().graph = null;
+        }
+
+        // Clean up existing store
         if (win.private().store) |store| {
             store.deinit();
             win.private().store = null;
@@ -438,7 +457,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     win.log("Finished loading.", .{});
     win.private().status = .Stopped;
-    win.private().open_action.setEnabled(0);
+    win.private().open_action.setEnabled(1);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
     win.private().reload_action.setEnabled(1);
@@ -468,7 +487,7 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
 
     win.private().status = .Stopped;
 
-    win.private().open_action.setEnabled(0);
+    win.private().open_action.setEnabled(1);
     win.private().save_action.setEnabled(1);
     win.private().randomize_action.setEnabled(1);
     win.private().reload_action.setEnabled(1);
@@ -558,6 +577,7 @@ fn handleStart(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationW
 
     win.log("Starting...", .{});
 
+    win.private().open_action.setEnabled(0);
     win.private().save_action.setEnabled(0);
     win.private().randomize_action.setEnabled(0);
     win.private().reload_action.setEnabled(0);

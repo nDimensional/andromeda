@@ -1,5 +1,5 @@
 #version 320 es
-precision mediump float;
+precision highp float;
 
 in vec2 vCenter;
 in float vRadius;
