@@ -365,7 +365,7 @@ fn handleRender(area: *gtk.GLArea, ctx: *gdk.GLContext, data: *Data) callconv(.C
     c.glUniform1f(data.device_pixel_ratio_location, @floatFromInt(scale_factor));
 
     // Calculate LOD and set render count
-    const lod_count = getLoD(data.zoom, data.count);
+    const lod_count = getLoD(data.scale, data.count);
 
     // Bind the VAO
     c.glBindVertexArray(data.vao);
@@ -526,9 +526,11 @@ fn handleZoom(gesture: *gtk.GestureZoom, scale: f64, data: *Data) callconv(.C) v
     _ = scale;
 }
 
-inline fn getLoD(zoom: f32, total: usize) usize {
-    _ = zoom; // unused for now
-    return total; // render all nodes initially
+inline fn getLoD(scale: f32, total: usize) usize {
+    const t: f32 = @floatFromInt(total);
+    const p: f32 = 2 * @sqrt(scale);
+    const r: usize = @intFromFloat(@round(p * t));
+    return @min(r, total, 1_000_000);
 }
 
 inline fn getScale(zoom: f32) f32 {
