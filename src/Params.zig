@@ -11,7 +11,6 @@ repulsion: f32 = 100.0,
 repulsion_exp: f32 = 1.0,
 center: f32 = 1.0,
 temperature: f32 = 0.2,
-weighted_nodes: bool = true,
 
 /// Get the force exerted on S by T
 pub inline fn getAttraction(self: Params, a: Point, b: Point, weight: f32) Force {

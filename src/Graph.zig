@@ -19,13 +19,11 @@ const IncomingEdge = struct { source: u32, weight: f32 };
 
 pub const Options = struct {
     progress_bar: ?*gtk.ProgressBar = null,
-    weighted_nodes: bool = true,
 };
 
 allocator: std.mem.Allocator,
 progress: Progress,
 store: *Store,
-weighted_nodes: bool,
 
 prng: std.Random.Xoshiro256,
 
@@ -43,7 +41,6 @@ pub fn init(allocator: std.mem.Allocator, store: *Store, options: Options) !*Gra
     graph.allocator = allocator;
     graph.progress = Progress{ .progress_bar = options.progress_bar };
     graph.store = store;
-    graph.weighted_nodes = options.weighted_nodes;
     graph.prng = std.Random.Xoshiro256.init(0);
     graph.node_count = try store.countNodes();
     graph.edge_count = try store.countEdges();

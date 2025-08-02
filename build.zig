@@ -11,8 +11,8 @@ pub fn build(b: *std.Build) !void {
     const sqlite_dep = b.dependency("sqlite", .{});
     const sqlite = sqlite_dep.module("sqlite");
 
-    const rtree_dep = b.dependency("rtree", .{});
-    const quadtree = rtree_dep.module("quadtree");
+    // const rtree_dep = b.dependency("rtree", .{});
+    // const quadtree = rtree_dep.module("quadtree");
 
     const exe = b.addExecutable(.{
         .name = "andromeda",
@@ -27,7 +27,7 @@ pub fn build(b: *std.Build) !void {
     // exe.root_module.linkFramework("OpenGL", .{});
     exe.root_module.linkSystemLibrary("epoxy", .{});
 
-    exe.root_module.addImport("quadtree", quadtree);
+    // exe.root_module.addImport("quadtree", quadtree);
     exe.root_module.addImport("sqlite", sqlite);
 
     const gobject = b.dependency("gobject", .{});

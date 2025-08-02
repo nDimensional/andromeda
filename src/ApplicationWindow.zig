@@ -60,7 +60,6 @@ pub const ApplicationWindow = extern struct {
         repulsion_exp: *gtk.SpinButton,
         center: *LogScale,
         temperature: *LogScale,
-        weighted_nodes: *gtk.Switch,
 
         tick_button: *gtk.Button,
         start_button: *gtk.Button,
@@ -182,9 +181,6 @@ pub const ApplicationWindow = extern struct {
         win.private().repulsion_exp.setClimbRate(0.1);
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
-
-        win.private().weighted_nodes.setActive(1);
-        win.private().weighted_nodes.as(gtk.Widget).setSensitive(1);
 
         win.private().start_action.setEnabled(0);
         win.private().stop_action.setEnabled(0);
@@ -349,15 +345,11 @@ pub const ApplicationWindow = extern struct {
 
         gtk.Stack.setVisibleChildName(win.private().stack, "loading");
 
-        const weighted_nodes = win.private().weighted_nodes.getActive();
-
         const graph = try Graph.init(c_allocator, store, .{
             .progress_bar = win.private().progress_bar,
-            .weighted_nodes = (weighted_nodes != 0),
         });
 
         win.private().open_action.setEnabled(0);
-        win.private().weighted_nodes.as(gtk.Widget).setSensitive(0);
         win.private().graph = graph;
         graph.load(.{ .callback = &loadResultCallback, .callback_data = win });
     }
@@ -427,8 +419,6 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
 
-            class.bindTemplateChildPrivate("weighted_nodes", .{});
-
             class.bindTemplateChildPrivate("canvas", .{});
         }
 
@@ -470,7 +460,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().repulsion_exp.as(gtk.Widget).setSensitive(1);
     win.private().center.as(gtk.Widget).setSensitive(1);
     win.private().temperature.as(gtk.Widget).setSensitive(1);
-    win.private().weighted_nodes.as(gtk.Widget).setSensitive(0);
 
     gtk.Stack.setVisibleChildName(win.private().stack, "status");
 }
