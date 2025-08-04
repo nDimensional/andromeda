@@ -1,7 +1,12 @@
 const std = @import("std");
-const utils = @import("utils.zig");
 
-pub const Force = @import("Force.zig");
+const forces = @import("./forces.zig");
+
+const epsilon = 0.0000001;
+
+inline fn getNorm(f: @Vector(2, f32)) f32 {
+    return std.math.sqrt(@reduce(.Add, f * f));
+}
 
 pub const Quadrant = enum(u2) {
     sw = 0,
@@ -62,7 +67,7 @@ pub const Area = packed struct {
         const zero: @Vector(2, f32) = comptime @splat(0);
         const s: @Vector(2, f32) = @splat(area.s / 2);
         const d = @abs(point - area.c) - s;
-        return utils.getNorm(2, @max(d, zero));
+        return getNorm(@max(d, zero));
     }
 };
 
@@ -123,7 +128,7 @@ pub const Node = packed struct {
 pub const Options = struct {
     /// threshold for large-body approximation
     threshold: f32 = 0.5,
-    force: Force = .{},
+    repulsion: f32 = 1.0,
 };
 
 pub const Quadtree = struct {
@@ -131,14 +136,14 @@ pub const Quadtree = struct {
 
     area: Area,
     tree: std.ArrayList(Node),
-    force: Force,
     threshold: f32,
+    repulsion: f32,
 
     pub fn init(allocator: std.mem.Allocator, area: Area, options: Options) Quadtree {
         return .{
             .tree = std.ArrayList(Node).init(allocator),
             .area = area,
-            .force = options.force,
+            .repulsion = options.repulsion,
             .threshold = options.threshold,
         };
     }
@@ -214,7 +219,7 @@ pub const Quadtree = struct {
 
         if (self.tree.items[id].isEmpty()) {
             self.tree.items[id].mass -= mass;
-            if (@abs(self.tree.items[id].mass) > utils.epsilon)
+            if (@abs(self.tree.items[id].mass) > epsilon)
                 return error.Empty;
             return true;
         }
@@ -238,39 +243,39 @@ pub const Quadtree = struct {
         }
     }
 
-    pub inline fn setForceParams(self: *Quadtree, params: Force.Params) void {
-        self.force = Force.create(params);
-    }
-
     pub inline fn setThreshold(self: *Quadtree, threshold: f32) void {
         self.threshold = threshold;
     }
 
-    pub fn getForce(self: Quadtree, position: @Vector(2, f32), mass: f32) @Vector(2, f32) {
+    pub inline fn setRepulsion(self: *Quadtree, repulsion: f32) void {
+        self.repulsion = repulsion;
+    }
+
+    pub inline fn getForce(self: Quadtree, body: Body) @Vector(2, f32) {
         if (self.tree.items.len == 0)
             return .{ 0, 0 };
 
-        return self.getForceNode(0, self.area.s, position, mass);
+        return self.getForceNode(0, self.area.s, body);
     }
 
-    fn getForceNode(self: Quadtree, id: u32, s: f32, p: @Vector(2, f32), m: f32) @Vector(2, f32) {
+    fn getForceNode(self: Quadtree, id: u32, s: f32, body: Body) @Vector(2, f32) {
         if (id >= self.tree.items.len)
             @panic("index out of range");
 
         const node = self.tree.items[id];
         if (node.isEmpty())
-            return self.force.getForce(2, p, m, node.center, node.mass);
+            return forces.getRepulsion(self.repulsion, body.position, body.mass, node.center, node.mass);
 
-        const d = utils.getNorm(2, node.center - p);
+        const d = getNorm(node.center - body.position);
         if (s / d < self.threshold)
-            return self.force.getForce(2, p, m, node.center, node.mass);
+            return forces.getRepulsion(self.repulsion, body.position, body.mass, node.center, node.mass);
 
         const s2 = s / 2;
         var f = @Vector(2, f32){ 0, 0 };
-        if (node.sw != Node.NULL) f += self.getForceNode(node.sw, s2, p, m);
-        if (node.nw != Node.NULL) f += self.getForceNode(node.nw, s2, p, m);
-        if (node.se != Node.NULL) f += self.getForceNode(node.se, s2, p, m);
-        if (node.ne != Node.NULL) f += self.getForceNode(node.ne, s2, p, m);
+        if (node.sw != Node.NULL) f += self.getForceNode(node.sw, s2, body);
+        if (node.nw != Node.NULL) f += self.getForceNode(node.nw, s2, body);
+        if (node.se != Node.NULL) f += self.getForceNode(node.se, s2, body);
+        if (node.ne != Node.NULL) f += self.getForceNode(node.ne, s2, body);
 
         return f;
     }
@@ -304,7 +309,7 @@ pub const Quadtree = struct {
             if (@reduce(.And, node.center == position) and mode == .exclusive)
                 return;
 
-            const dist = utils.getNorm(2, node.center - position);
+            const dist = getNorm(node.center - position);
             if (dist < nearest_dist.*) {
                 nearest.position = node.center;
                 nearest.mass = node.mass;

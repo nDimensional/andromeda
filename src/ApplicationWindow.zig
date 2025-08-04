@@ -478,7 +478,6 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 fn handleMetricsUpdate(user_data: ?*anyopaque) callconv(.C) c_int {
     const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
     win.updateMetrics() catch |err| @panic(@errorName(err));
-    // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
     return 1;
 }
 

@@ -9,6 +9,8 @@ const Params = @import("../../Params.zig");
 const Graph = @import("../../Graph.zig");
 const utils = @import("../../utils.zig");
 
+const forces = @import("./forces.zig");
+
 const Engine = @This();
 
 const Stats = struct {
@@ -20,15 +22,7 @@ const Stats = struct {
     swing: f32 = 0,
 };
 
-/// Get the force exerted on S by T
-pub inline fn getAttraction(attraction: f32, a: @Vector(2, f32), b: @Vector(2, f32), weight: f32) @Vector(2, f32) {
-    var delta = b - a;
-    delta *= @splat(attraction * weight);
-    return delta;
-}
-
 const free_threads = 1;
-
 const force_exponent = -1;
 
 allocator: std.mem.Allocator,
@@ -78,7 +72,7 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
         const q = @as(u2, @intCast(i));
         // self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), params, .{});
         self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), .{
-            .force = Force.create(.{ .r = -1, .c = -params.repulsion / 500 }),
+            // .force = Force.create(.{ .r = -1, .c = -params.repulsion / 500 }),
         });
     }
 
@@ -124,8 +118,10 @@ pub fn tick(self: *Engine) !u64 {
 
     try self.rebuildTrees();
 
+    // for (&self.trees) |*tree|
+    //     tree.setForceParams(.{ .r = -1, .c = -self.params.repulsion / 500 });
     for (&self.trees) |*tree|
-        tree.setForceParams(.{ .r = -1, .c = -self.params.repulsion / 500 });
+        tree.setRepulsion(-self.params.repulsion / 500);
 
     const node_count = self.graph.node_count;
     for (0..self.pool_size) |pool_i| {
@@ -208,18 +204,18 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
 
         for (self.graph.outgoing_edges[i].items) |edge| {
             const t = self.graph.positions[edge.target];
-            f += getAttraction(self.params.attraction, p, t, edge.weight);
+            f += forces.getAttraction(self.params.attraction, p, t, edge.weight);
         }
 
         for (self.graph.incoming_edges[i].items) |edge| {
             const s = self.graph.positions[edge.source];
-            f += getAttraction(self.params.attraction, p, s, edge.weight);
+            f += forces.getAttraction(self.params.attraction, p, s, edge.weight);
         }
 
         for (self.trees) |tree|
-            f += tree.getForce(p, mass);
+            f += tree.getForce(.{ .position = p, .mass = mass });
 
-        f += center * getAttraction(self.params.attraction, p, .{ 0, 0 }, 1.0);
+        f += center * forces.getAttraction(self.params.attraction, p, .{ 0, 0 }, 1.0);
 
         const swing = utils.norm(self.node_forces[i] - f);
         self.node_forces[i] = f;

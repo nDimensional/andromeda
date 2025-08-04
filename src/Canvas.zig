@@ -309,6 +309,10 @@ fn handleRealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {
     data.scale = getScale(data.zoom);
     data.scale_radius = getScaleRadius(data.scale);
     data.count = initial_positions.len;
+
+    // initial offset/zoom callback
+    if (data.update_callback) |update_callback|
+        update_callback(data.offset, data.zoom, data.update_callback_data);
 }
 
 fn handleUnrealize(area: *gtk.GLArea, data: *Data) callconv(.C) void {

@@ -110,7 +110,6 @@
                 <child>
                   <object class="GtkLabel" id="engine_label">
                     <property name="halign">start</property>
-                    <property name="hexpand">true</property>
                   </object>
                 </child>
               </object>
