@@ -10,16 +10,16 @@ pub inline fn getAttraction(attraction: f32, a: @Vector(2, f32), b: @Vector(2, f
     return delta;
 }
 
-pub inline fn getRepulsion(qt: *const quadtree.Quadtree, repulsion: f32, body: quadtree.Body) @Vector(2, f32) {
+pub inline fn getRepulsion(repulsion: f32, qt: *const quadtree.Quadtree, body: quadtree.Body) @Vector(2, f32) {
     if (qt.tree.items.len == 0)
         return .{ 0, 0 };
 
-    return qt.getForceNode(qt, repulsion, 0, qt.area.s, body);
+    return getRepulsionNode(repulsion, qt, 0, qt.area.s, body);
 }
 
 const threshold = 0.5;
 
-fn getForceNode(qt: *const quadtree.Quadtree, repulsion: f32, id: u32, s: f32, body: quadtree.Body) @Vector(2, f32) {
+fn getRepulsionNode(repulsion: f32, qt: *const quadtree.Quadtree, id: u32, s: f32, body: quadtree.Body) @Vector(2, f32) {
     if (id >= qt.tree.items.len)
         @panic("index out of range");
 
@@ -33,10 +33,10 @@ fn getForceNode(qt: *const quadtree.Quadtree, repulsion: f32, id: u32, s: f32, b
 
     const s2 = s / 2;
     var f = @Vector(2, f32){ 0, 0 };
-    if (node.sw != quadtree.Node.NULL) f += getForceNode(qt, node.sw, s2, body);
-    if (node.nw != quadtree.Node.NULL) f += getForceNode(qt, node.nw, s2, body);
-    if (node.se != quadtree.Node.NULL) f += getForceNode(qt, node.se, s2, body);
-    if (node.ne != quadtree.Node.NULL) f += getForceNode(qt, node.ne, s2, body);
+    if (node.sw != quadtree.Node.NULL) f += getRepulsionNode(repulsion, qt, node.sw, s2, body);
+    if (node.nw != quadtree.Node.NULL) f += getRepulsionNode(repulsion, qt, node.nw, s2, body);
+    if (node.se != quadtree.Node.NULL) f += getRepulsionNode(repulsion, qt, node.se, s2, body);
+    if (node.ne != quadtree.Node.NULL) f += getRepulsionNode(repulsion, qt, node.ne, s2, body);
 
     return f;
 }
@@ -61,6 +61,5 @@ inline fn getRepulsionForce(
 
     // // inv_square
     // const f = repulsion * a_mass * b_mass / dist2;
-
     return unit * @as(@Vector(2, f32), @splat(f));
 }
