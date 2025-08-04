@@ -88,7 +88,7 @@
                 </child>
               </object>
             </child>
-            <!-- <child>
+            <child>
               <object class="GtkBox">
                 <property name="orientation">horizontal</property>
                 <property name="hexpand">true</property>
@@ -96,21 +96,25 @@
                 <property name="margin-end">10</property>
                 <property name="margin-bottom">10</property>
                 <child>
-                  <object class="GtkLabel">
-                    <property
-                      name="label"
-                    >Weight nodes by incoming degree</property>
-                    <property name="hexpand">true</property>
-                    <property name="halign">start</property>
+                  <object class="GtkDropDown" id="engine_dropdown">
+                    <property name="model">
+                      <object class="GtkStringList">
+                        <items>
+                          <item translatable="yes">ForceAtlas2</item>
+                          <!-- <item translatable="yes">UMAP</item> -->
+                        </items>
+                      </object>
+                    </property>
                   </object>
                 </child>
                 <child>
-                  <object class="GtkSwitch" id="weighted_nodes">
-                    <property name="halign">end</property>
+                  <object class="GtkLabel" id="engine_label">
+                    <property name="halign">start</property>
+                    <property name="hexpand">true</property>
                   </object>
                 </child>
               </object>
-            </child> -->
+            </child>
             <child>
               <object class="GtkSeparator">
                 <property name="orientation">horizontal</property>
@@ -145,21 +149,10 @@
                     <property name="orientation">vertical</property>
                     <property name="hexpand">true</property>
                     <child>
-                      <object class="GtkBox">
-                        <property name="orientation">horizontal</property>
+                      <object class="GtkLabel">
+                        <property name="label">Repulsion</property>
+                        <property name="halign">start</property>
                         <property name="hexpand">true</property>
-                        <child>
-                          <object class="GtkLabel">
-                            <property name="label">Repulsion</property>
-                            <property name="halign">start</property>
-                            <property name="hexpand">true</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkSpinButton" id="repulsion_exp">
-                            <property name="halign">end</property>
-                          </object>
-                        </child>
                       </object>
                     </child>
                     <child>
@@ -257,30 +250,20 @@
                         <property name="margin-top">10</property>
                         <property name="margin-bottom">10</property>
                         <child>
-                          <object class="GtkLabel" id="ticker">
+                          <object class="GtkLabel" id="ticker_label">
                             <property name="halign">start</property>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkLabel" id="energy">
+                          <object class="GtkLabel" id="canvas_position">
                             <property name="halign">start</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkBox">
-                            <property name="orientation">horizontal</property>
                             <property name="hexpand">true</property>
-                            <child>
-                              <object class="GtkLabel" id="canvas_position">
-                                <property name="halign">start</property>
-                                <property name="hexpand">true</property>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="canvas_zoom">
-                                <property name="halign">end</property>
-                              </object>
-                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="canvas_zoom">
+                            <property name="halign">start</property>
+                            <property name="hexpand">true</property>
                           </object>
                         </child>
                       </object>

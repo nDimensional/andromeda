@@ -14,8 +14,8 @@ const utils = @import("utils.zig");
 
 const Graph = @This();
 
-const OutgoingEdge = struct { target: u32, weight: f32 };
-const IncomingEdge = struct { source: u32, weight: f32 };
+const OutgoingEdge = packed struct { target: u32, weight: f32 };
+const IncomingEdge = packed struct { source: u32, weight: f32 };
 
 pub const Options = struct {
     progress_bar: ?*gtk.ProgressBar = null,

@@ -33,7 +33,7 @@ const Data = struct {
     zoom: f32 = 0,
     scale: f32 = 1,
     scale_radius: f32 = 1,
-    update_callback: ?*const fn (?*anyopaque) callconv(.C) void = null,
+    update_callback: ?*const fn (@Vector(2, f32), f32, ?*anyopaque) void = null,
     update_callback_data: ?*anyopaque = null,
     index_buffer: c.GLuint = 0,
     index_permutation: ?[]u32 = null,
@@ -201,12 +201,7 @@ pub const Canvas = extern struct {
         area.queueRender();
     }
 
-    pub fn getCanvasInfo(self: *Canvas) struct { offset: @Vector(2, f32), zoom: f32 } {
-        const data = self.private().data orelse return .{ .offset = .{ 0, 0 }, .zoom = 0 };
-        return .{ .offset = data.offset, .zoom = data.zoom };
-    }
-
-    pub fn setUpdateCallback(self: *Canvas, callback: ?*const fn (?*anyopaque) callconv(.C) void, user_data: ?*anyopaque) void {
+    pub fn setUpdateCallback(self: *Canvas, callback: ?*const fn (@Vector(2, f32), f32, ?*anyopaque) void, user_data: ?*anyopaque) void {
         const data = self.private().data orelse return;
         data.update_callback = callback;
         data.update_callback_data = user_data;
@@ -493,13 +488,14 @@ fn handleMouseDrag(gesture: *gtk.GestureDrag, offset_x: f64, offset_y: f64, data
     };
 
     data.offset = data.anchor + offset;
-    if (data.update_callback) |callback| callback(data.update_callback_data);
+    if (data.update_callback) |callback|
+        callback(data.offset, data.zoom, data.update_callback_data);
     area.queueRender();
 }
 
 fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, data: *Data) callconv(.C) c_int {
+    const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
     _ = dx;
-
     var zoom = data.zoom + 8 * dy;
     zoom = @min(MAX_ZOOM, zoom);
     zoom = @max(MIN_ZOOM, zoom);
@@ -507,8 +503,9 @@ fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, d
     data.scale = getScale(data.zoom);
     data.scale_radius = getScaleRadius(data.scale);
 
-    if (data.update_callback) |callback| callback(data.update_callback_data);
-    const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
+    if (data.update_callback) |callback|
+        callback(data.offset, data.zoom, data.update_callback_data);
+
     area.queueRender();
 
     return 1;

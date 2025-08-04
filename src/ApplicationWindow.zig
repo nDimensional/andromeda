@@ -20,7 +20,7 @@ const LogScale = @import("LogScale.zig").LogScale;
 const Canvas = @import("Canvas.zig").Canvas;
 const Params = @import("Params.zig");
 
-const Engine = @import("engines/ForceAtlas2/Engine.zig");
+const engines = @import("engines/engines.zig");
 
 const TEMPLATE = @embedFile("./data/ui/ApplicationWindow.xml");
 
@@ -40,7 +40,12 @@ pub const ApplicationWindow = extern struct {
 
     pub const Parent = gtk.ApplicationWindow;
 
-    const Metrics = struct { count: u64, energy: f32, time: u64, swing: f32 };
+    const Metrics = struct {
+        time: u64,
+        count: u64,
+        // energy: f32,
+        // swing: f32,
+    };
 
     const Private = struct {
         path: ?[*:0]const u8,
@@ -57,17 +62,18 @@ pub const ApplicationWindow = extern struct {
 
         attraction: *LogScale,
         repulsion: *LogScale,
-        repulsion_exp: *gtk.SpinButton,
         center: *LogScale,
         temperature: *LogScale,
+
+        engine_dropdown: *gtk.DropDown,
 
         tick_button: *gtk.Button,
         start_button: *gtk.Button,
         stop_button: *gtk.Button,
         progress_bar: *gtk.ProgressBar,
 
-        ticker: *gtk.Label,
-        energy: *gtk.Label,
+        ticker_label: *gtk.Label,
+        engine_label: *gtk.Label,
         canvas_position: *gtk.Label,
         canvas_zoom: *gtk.Label,
 
@@ -125,8 +131,6 @@ pub const ApplicationWindow = extern struct {
 
         _ = LogScale.signals.value_changed.connect(win.private().attraction, *ApplicationWindow, &handleAttractionValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().repulsion, *ApplicationWindow, &handleRepulsionValueChanged, win, .{});
-        // _ = gtk.SpinButton.signals.change_value.connect(win.private().repulsion_exp, *ApplicationWindow, &handleRepulsionExpChangeValue, win, .{});
-        _ = gtk.SpinButton.signals.value_changed.connect(win.private().repulsion_exp, *ApplicationWindow, &handleRepulsionExpValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().center, *ApplicationWindow, &handleCenterValueChanged, win, .{});
         _ = LogScale.signals.value_changed.connect(win.private().temperature, *ApplicationWindow, &handleTemperatureValueChanged, win, .{});
 
@@ -170,38 +174,28 @@ pub const ApplicationWindow = extern struct {
 
         win.private().attraction.setValue(initial_params.attraction * attraction_scale);
         win.private().repulsion.setValue(initial_params.repulsion * repulsion_scale);
-        const repulsion_exp_adjustment = gtk.Adjustment.new(1.0, 0.0, 3.0, 0.1, 1.0, 0.0);
-        win.private().repulsion_exp.setAdjustment(repulsion_exp_adjustment);
-        win.private().repulsion_exp.setValue(1);
-        // win.private().repulsion_exp.setRange(0, 3);
-        // win.private().repulsion_exp.setIncrements(0.1, 1);
-        win.private().repulsion_exp.setDigits(1);
-        win.private().repulsion_exp.setNumeric(1);
-        win.private().repulsion_exp.setSnapToTicks(1);
-        win.private().repulsion_exp.setClimbRate(0.1);
         win.private().center.setValue(initial_params.center * center_scale);
         win.private().temperature.setValue(initial_params.temperature * temperature_scale);
 
         win.private().start_action.setEnabled(0);
         win.private().stop_action.setEnabled(0);
         win.private().tick_button.as(gtk.Widget).setSensitive(0);
+        win.private().engine_dropdown.as(gtk.Widget).setSensitive(0);
 
         win.private().attraction.as(gtk.Widget).setSensitive(0);
         win.private().repulsion.as(gtk.Widget).setSensitive(0);
-        win.private().repulsion_exp.as(gtk.Widget).setSensitive(0);
         win.private().center.as(gtk.Widget).setSensitive(0);
         win.private().temperature.as(gtk.Widget).setSensitive(0);
 
         gtk.Stack.setVisibleChildName(win.private().stack, "landing");
 
-        // Set up canvas update callback for real-time position/zoom updates
         win.private().canvas.setUpdateCallback(&handleCanvasUpdate, win);
 
         win.private().render_source_id = null;
         win.private().metrics_source_id = null;
-        win.private().metrics.count = 0;
-        win.private().metrics.energy = 0;
         win.private().metrics.time = 0;
+        win.private().metrics.count = 0;
+        // win.private().metrics.energy = 0;
     }
 
     fn dispose(win: *ApplicationWindow) callconv(.C) void {
@@ -235,13 +229,23 @@ pub const ApplicationWindow = extern struct {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        const engine = Engine.init(c_allocator, graph, params) catch |err|
+        const tag = switch (win.private().engine_dropdown.getSelected()) {
+            0 => engines.EngineTag.ForceAtlas2,
+            // 1 => engines.EngineTag.UMAP,
+            else => |i| {
+                std.log.warn("invalid engine index: {d}", .{i});
+                return;
+            },
+        };
+
+        const engine = engines.Engine.init(c_allocator, graph, params, tag) catch |err|
             @panic(@errorName(err));
+
         defer engine.deinit();
 
         win.tick(engine) catch |err| @panic(@errorName(err));
         win.updateMetrics() catch |err| @panic(@errorName(err));
-        win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+        // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 
         win.private().canvas.update(graph.positions);
     }
@@ -252,10 +256,6 @@ pub const ApplicationWindow = extern struct {
 
     fn handleRepulsionValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
         win.private().params.repulsion = @floatCast(value / repulsion_scale);
-    }
-
-    fn handleRepulsionExpValueChanged(button: *gtk.SpinButton, win: *ApplicationWindow) callconv(.C) void {
-        win.private().params.repulsion_exp = @floatCast(button.getValue());
     }
 
     fn handleCenterValueChanged(_: *LogScale, value: f64, win: *ApplicationWindow) callconv(.C) void {
@@ -270,8 +270,18 @@ pub const ApplicationWindow = extern struct {
         const graph = win.private().graph orelse return;
         const params = &win.private().params;
 
-        const engine = Engine.init(c_allocator, graph, params) catch |err|
+        const tag = switch (win.private().engine_dropdown.getSelected()) {
+            0 => engines.EngineTag.ForceAtlas2,
+            // 1 => engines.EngineTag.UMAP,
+            else => |i| {
+                std.log.warn("invalid engine index: {d}", .{i});
+                return;
+            },
+        };
+
+        const engine = engines.Engine.init(c_allocator, graph, params, tag) catch |err|
             @panic(@errorName(err));
+
         defer engine.deinit();
 
         win.private().status = .Running;
@@ -288,17 +298,17 @@ pub const ApplicationWindow = extern struct {
         _ = glib.idleAdd(&handleLoopStop, win);
     }
 
-    fn tick(win: *ApplicationWindow, engine: *Engine) !void {
-        const graph = win.private().graph orelse return;
+    fn tick(win: *ApplicationWindow, engine: engines.Engine) !void {
+        // const graph = win.private().graph orelse return;
         const start = win.private().timer.read();
         const count = try engine.tick();
         const time = win.private().timer.read() - start;
-        const total: f32 = @floatFromInt(graph.node_count);
+        // const total: f32 = @floatFromInt(graph.node_count);
         win.private().metrics = .{
             .count = count,
             .time = time / 1_000_000,
-            .swing = engine.stats.swing / total,
-            .energy = engine.stats.energy / total,
+            // .swing = engine.stats.swing / total,
+            // .energy = engine.stats.energy / total,
         };
 
         win.private().dirty = true;
@@ -358,25 +368,25 @@ pub const ApplicationWindow = extern struct {
         const metrics = win.private().metrics;
 
         const ticker_markup = try std.fmt.bufPrintZ(&label_buffer, "Ticks: {d}, Time: {d}ms", .{ metrics.count, metrics.time });
-        win.private().ticker.setMarkup(ticker_markup);
+        win.private().ticker_label.setMarkup(ticker_markup);
 
-        const energy_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}, Swing: {e:.3}", .{ metrics.energy, metrics.swing });
-        win.private().energy.setMarkup(energy_markup);
+        // const engine_markup = try std.fmt.bufPrintZ(&label_buffer, "Energy: {e:.3}, Swing: {e:.3}", .{ metrics.energy, metrics.swing });
+        // win.private().engine_label.setMarkup(engine_markup);
     }
 
-    fn updateCanvasInfo(win: *ApplicationWindow) !void {
-        const canvas_info = win.private().canvas.getCanvasInfo();
+    fn handleCanvasUpdate(offset: @Vector(2, f32), zoom: f32, user_data: ?*anyopaque) void {
+        const win: *ApplicationWindow = @alignCast(@ptrCast(user_data orelse return));
+        win.updateCanvasInfo(offset, zoom) catch |err| {
+            std.log.err("{any}", .{err});
+        };
+    }
 
-        const position_markup = try std.fmt.bufPrintZ(&label_buffer, "Position: ({d:.0}, {d:.0})", .{ canvas_info.offset[0], canvas_info.offset[1] });
+    inline fn updateCanvasInfo(win: *ApplicationWindow, offset: @Vector(2, f32), zoom: f32) !void {
+        const position_markup = try std.fmt.bufPrintZ(&label_buffer, "Position: ({d:.0}, {d:.0})", .{ offset[0], offset[1] });
         win.private().canvas_position.setMarkup(position_markup);
 
-        const zoom_markup = try std.fmt.bufPrintZ(&label_buffer, "Zoom: {d: >5.0}", .{canvas_info.zoom});
+        const zoom_markup = try std.fmt.bufPrintZ(&label_buffer, "Zoom: {d: >5.0}", .{zoom});
         win.private().canvas_zoom.setMarkup(zoom_markup);
-    }
-
-    fn handleCanvasUpdate(user_data: ?*anyopaque) callconv(.C) void {
-        const win: *ApplicationWindow = @alignCast(@ptrCast(user_data orelse return));
-        win.updateCanvasInfo() catch |err| @panic(@errorName(err));
     }
 
     fn log(win: *ApplicationWindow, comptime format: []const u8, args: anytype) void {
@@ -404,8 +414,8 @@ pub const ApplicationWindow = extern struct {
 
             class.bindTemplateChildPrivate("stack", .{});
             class.bindTemplateChildPrivate("progress_bar", .{});
-            class.bindTemplateChildPrivate("ticker", .{});
-            class.bindTemplateChildPrivate("energy", .{});
+            class.bindTemplateChildPrivate("ticker_label", .{});
+            class.bindTemplateChildPrivate("engine_label", .{});
             class.bindTemplateChildPrivate("canvas_position", .{});
             class.bindTemplateChildPrivate("canvas_zoom", .{});
 
@@ -413,9 +423,10 @@ pub const ApplicationWindow = extern struct {
             class.bindTemplateChildPrivate("start_button", .{});
             class.bindTemplateChildPrivate("stop_button", .{});
 
+            class.bindTemplateChildPrivate("engine_dropdown", .{});
+
             class.bindTemplateChildPrivate("attraction", .{});
             class.bindTemplateChildPrivate("repulsion", .{});
-            class.bindTemplateChildPrivate("repulsion_exp", .{});
             class.bindTemplateChildPrivate("center", .{});
             class.bindTemplateChildPrivate("temperature", .{});
 
@@ -443,7 +454,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 
     const graph = win.private().graph orelse return;
     win.private().canvas.load(graph.positions) catch |err| @panic(@errorName(err));
-    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+    // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 
     win.log("Finished loading.", .{});
     win.private().status = .Stopped;
@@ -454,10 +465,10 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
     win.private().stop_action.setEnabled(0);
     win.private().start_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
+    win.private().engine_dropdown.as(gtk.Widget).setSensitive(1);
 
     win.private().attraction.as(gtk.Widget).setSensitive(1);
     win.private().repulsion.as(gtk.Widget).setSensitive(1);
-    win.private().repulsion_exp.as(gtk.Widget).setSensitive(1);
     win.private().center.as(gtk.Widget).setSensitive(1);
     win.private().temperature.as(gtk.Widget).setSensitive(1);
 
@@ -467,7 +478,7 @@ fn loadResultCallback(_: ?*gobject.Object, res: *gio.AsyncResult, data: ?*anyopa
 fn handleMetricsUpdate(user_data: ?*anyopaque) callconv(.C) c_int {
     const win: *ApplicationWindow = @alignCast(@ptrCast(user_data));
     win.updateMetrics() catch |err| @panic(@errorName(err));
-    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+    // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
     return 1;
 }
 
@@ -483,6 +494,7 @@ fn handleLoopStop(user_data: ?*anyopaque) callconv(.C) c_int {
     win.private().stop_action.setEnabled(0);
     win.private().start_action.setEnabled(1);
     win.private().tick_button.as(gtk.Widget).setSensitive(1);
+    win.private().engine_dropdown.as(gtk.Widget).setSensitive(1);
 
     return 0;
 }
@@ -494,7 +506,7 @@ fn handleRender(user_data: ?*anyopaque) callconv(.C) c_int {
         if (win.private().dirty) {
             win.private().dirty = false;
             win.private().canvas.update(graph.positions);
-            win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+            // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
         }
     }
 
@@ -542,7 +554,7 @@ fn handleRandomize(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *Applicat
     const s = std.math.sqrt(@as(f32, @floatFromInt(graph.node_count)));
     graph.randomize(s * 100);
     win.private().canvas.update(graph.positions);
-    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+    // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
     win.log("Randomized.", .{});
 }
 
@@ -571,6 +583,7 @@ fn handleStart(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *ApplicationW
     win.private().randomize_action.setEnabled(0);
     win.private().reload_action.setEnabled(0);
     win.private().tick_button.as(gtk.Widget).setSensitive(0);
+    win.private().engine_dropdown.as(gtk.Widget).setSensitive(0);
 
     win.private().start_action.setEnabled(0);
     win.private().stop_action.setEnabled(1);
@@ -599,5 +612,5 @@ fn handleReload(_: *gio.SimpleAction, variant: ?*glib.Variant, win: *Application
 
     win.private().dirty = false;
     win.private().canvas.update(graph.positions);
-    win.updateCanvasInfo() catch |err| @panic(@errorName(err));
+    // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 }
