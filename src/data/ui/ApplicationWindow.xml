@@ -101,7 +101,7 @@
                       <object class="GtkStringList">
                         <items>
                           <item translatable="yes">ForceAtlas2</item>
-                          <!-- <item translatable="yes">UMAP</item> -->
+                          <item translatable="yes">UMAP</item>
                         </items>
                       </object>
                     </property>

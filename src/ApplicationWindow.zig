@@ -231,7 +231,7 @@ pub const ApplicationWindow = extern struct {
 
         const tag = switch (win.private().engine_dropdown.getSelected()) {
             0 => engines.EngineTag.ForceAtlas2,
-            // 1 => engines.EngineTag.UMAP,
+            1 => engines.EngineTag.UMAP,
             else => |i| {
                 std.log.warn("invalid engine index: {d}", .{i});
                 return;
@@ -245,7 +245,6 @@ pub const ApplicationWindow = extern struct {
 
         win.tick(engine) catch |err| @panic(@errorName(err));
         win.updateMetrics() catch |err| @panic(@errorName(err));
-        // win.updateCanvasInfo() catch |err| @panic(@errorName(err));
 
         win.private().canvas.update(graph.positions);
     }
@@ -272,7 +271,7 @@ pub const ApplicationWindow = extern struct {
 
         const tag = switch (win.private().engine_dropdown.getSelected()) {
             0 => engines.EngineTag.ForceAtlas2,
-            // 1 => engines.EngineTag.UMAP,
+            1 => engines.EngineTag.UMAP,
             else => |i| {
                 std.log.warn("invalid engine index: {d}", .{i});
                 return;

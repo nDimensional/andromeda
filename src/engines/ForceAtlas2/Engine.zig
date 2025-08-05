@@ -113,9 +113,6 @@ pub fn tick(self: *Engine) !u64 {
 
     try self.rebuildTrees();
 
-    // for (&self.trees) |*tree|
-    //     tree.setForceParams(.{ .r = -1, .c = -self.params.repulsion / 500 });
-
     const node_count = self.graph.node_count;
     for (0..self.pool_size) |pool_i| {
         const min = pool_i * node_count / self.pool_size;
@@ -189,9 +186,8 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
     const repulsion = -self.params.repulsion / 500;
 
     for (min..max) |i| {
-        if (i >= self.graph.node_count) {
+        if (i >= self.graph.node_count)
             break;
-        }
 
         const mass = self.mass[i];
         var p = self.graph.positions[i];
@@ -218,7 +214,7 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
 
         const k_s = 100;
         const s_g = temperature;
-        const speed = k_s * s_g / (1 + s_g * std.math.sqrt(swing));
+        const speed = k_s * s_g / (1 + s_g * @sqrt(swing));
 
         p += @as(@Vector(2, f32), @splat(speed * temperature)) * f;
 

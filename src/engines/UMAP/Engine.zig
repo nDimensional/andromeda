@@ -18,7 +18,6 @@ const Stats = struct {
     max_x: f32 = 0,
     min_y: f32 = 0,
     max_y: f32 = 0,
-    swing: f32 = 0,
 };
 
 const free_threads = 1;
@@ -32,7 +31,6 @@ node_forces: []Params.Force,
 pool_size: usize,
 thread_pool: []std.Thread,
 stats_pool: []Stats,
-mass: []f32,
 
 tick_count: u64,
 
@@ -51,12 +49,6 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
     self.params = params;
     self.timer = try std.time.Timer.start();
 
-    self.mass = try allocator.alloc(f32, graph.node_count);
-    errdefer allocator.free(self.mass);
-
-    for (graph.incoming_edges, 0..) |incoming_edges, i|
-        self.mass[i] = utils.getMass(incoming_edges.items.len);
-
     const cpu_count = try std.Thread.getCpuCount();
     self.pool_size = @max(1 + free_threads, cpu_count) - free_threads;
 
@@ -68,7 +60,6 @@ pub fn init(allocator: std.mem.Allocator, graph: *const Graph, params: *const Pa
 
     for (0..self.trees.len) |i| {
         const q = @as(u2, @intCast(i));
-        // self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)), params, .{});
         self.trees[i] = Quadtree.init(allocator, area.divide(@enumFromInt(q)));
     }
 
@@ -114,9 +105,6 @@ pub fn tick(self: *Engine) !u64 {
 
     try self.rebuildTrees();
 
-    // for (&self.trees) |*tree|
-    //     tree.setForceParams(.{ .r = -1, .c = -self.params.repulsion / 500 });
-
     const node_count = self.graph.node_count;
     for (0..self.pool_size) |pool_i| {
         const min = pool_i * node_count / self.pool_size;
@@ -135,7 +123,6 @@ pub fn tick(self: *Engine) !u64 {
         self.stats.max_x = @max(self.stats.max_x, stats.max_x);
         self.stats.min_y = @min(self.stats.min_y, stats.min_y);
         self.stats.max_y = @max(self.stats.max_y, stats.max_y);
-        self.stats.swing += stats.swing;
         self.stats.energy += stats.energy;
     }
 
@@ -169,16 +156,17 @@ fn rebuildTree(self: *Engine, tree: *Quadtree) !void {
     var i: u32 = 0;
     while (i < self.graph.node_count) : (i += 1) {
         const p = self.graph.positions[i];
-        if (tree.area.contains(p)) {
-            const mass = self.mass[i];
-            try tree.insert(p, mass);
-        }
+        if (tree.area.contains(p))
+            try tree.insert(p, 1.0);
     }
 }
 
 fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
     const temperature = self.params.temperature;
-    const center: Params.Force = @splat(self.params.center);
+    const attraction = self.params.attraction;
+    const repulsion = self.params.repulsion;
+
+    const center: @Vector(2, f32) = @splat(-self.params.center);
 
     stats.min_x = 0;
     stats.max_x = 0;
@@ -186,50 +174,38 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
     stats.max_y = 0;
     stats.energy = 0;
 
-    const attraction = self.params.attraction;
-    const repulsion = -self.params.repulsion / 500;
-
     for (min..max) |i| {
-        if (i >= self.graph.node_count) {
+        if (i >= self.graph.node_count)
             break;
-        }
 
-        const mass = self.mass[i];
         var p = self.graph.positions[i];
 
         var f: @Vector(2, f32) = .{ 0, 0 };
 
         for (self.graph.outgoing_edges[i].items) |edge| {
             const t = self.graph.positions[edge.target];
-            f += forces.getAttraction(attraction, p, t, edge.weight);
+            f += forces.getAttraction(repulsion, attraction, p, t, edge.weight);
         }
 
         for (self.graph.incoming_edges[i].items) |edge| {
             const s = self.graph.positions[edge.source];
-            f += forces.getAttraction(attraction, p, s, edge.weight);
+            f += forces.getAttraction(repulsion, attraction, p, s, edge.weight);
         }
 
         for (&self.trees) |*tree|
-            f += forces.getRepulsion(repulsion, tree, .{ .position = p, .mass = mass });
+            f += forces.getRepulsion(repulsion, tree, .{ .position = p, .mass = 1.0 });
 
-        f += center * forces.getAttraction(attraction, p, .{ 0, 0 }, 1.0);
+        f += center * p;
 
-        const swing = utils.norm(self.node_forces[i] - f);
         self.node_forces[i] = f;
 
-        const k_s = 100;
-        const s_g = temperature;
-        const speed = k_s * s_g / (1 + s_g * std.math.sqrt(swing));
-
-        p += @as(@Vector(2, f32), @splat(speed * temperature)) * f;
-
+        p += @as(@Vector(2, f32), @splat(temperature)) * f;
         self.graph.positions[i] = p;
 
         stats.min_x = @min(stats.min_x, p[0]);
         stats.max_x = @max(stats.max_x, p[0]);
         stats.min_y = @min(stats.min_y, p[1]);
         stats.max_y = @max(stats.max_y, p[1]);
-        stats.swing += self.mass[i] * swing;
         stats.energy += utils.norm(f);
     }
 }

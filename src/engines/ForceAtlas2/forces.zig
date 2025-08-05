@@ -56,10 +56,22 @@ inline fn getRepulsionForce(
     const dist: f32 = std.math.sqrt(dist2);
     const unit = delta / @as(@Vector(2, f32), @splat(dist));
 
-    // inv_linear
-    const f = repulsion * a_mass * b_mass / dist;
-
-    // // inv_square
-    // const f = repulsion * a_mass * b_mass / dist2;
+    const f = repulsion * a_mass * b_mass * std.math.pow(f32, dist, -0.8);
     return unit * @as(@Vector(2, f32), @splat(f));
 }
+
+// optimized inv_linear
+// inline fn getRepulsionForce(
+//     repulsion: f32,
+//     a_position: @Vector(2, f32),
+//     a_mass: f32,
+//     b_position: @Vector(2, f32),
+//     b_mass: f32,
+// ) @Vector(2, f32) {
+//     const delta: @Vector(2, f32) = b_position - a_position;
+//     const dist2: f32 = @reduce(.Add, delta * delta);
+//     if (dist2 == 0) return @splat(0);
+
+//     const f = repulsion * a_mass * b_mass / dist2;
+//     return delta * @as(@Vector(2, f32), @splat(f));
+// }
