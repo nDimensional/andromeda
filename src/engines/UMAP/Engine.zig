@@ -196,11 +196,28 @@ fn updateNodes(self: *Engine, min: usize, max: usize, stats: *Stats) !void {
             f += forces.getRepulsion(repulsion, tree, .{ .position = p, .mass = 1.0 });
 
         f += center * p;
-
         self.node_forces[i] = f;
 
-        p += @as(@Vector(2, f32), @splat(temperature)) * f;
-        self.graph.positions[i] = p;
+        {
+            p += @as(@Vector(2, f32), @splat(temperature)) * f;
+            self.graph.positions[i] = p;
+        }
+
+        {
+            // const magnitude = utils.norm(f);
+            // if (magnitude > 10_000)
+            //     f /= @splat(magnitude - 10_000);
+
+            // const swing = utils.norm(self.node_forces[i] - f);
+            // self.node_forces[i] = f;
+
+            // const k_s = 100;
+            // const s_g = temperature;
+            // const speed = k_s * s_g / (1 + s_g * @sqrt(swing));
+
+            // p += @as(@Vector(2, f32), @splat(speed * temperature)) * f;
+            // self.graph.positions[i] = p;
+        }
 
         stats.min_x = @min(stats.min_x, p[0]);
         stats.max_x = @max(stats.max_x, p[0]);

@@ -497,21 +497,87 @@ fn handleMouseDrag(gesture: *gtk.GestureDrag, offset_x: f64, offset_y: f64, data
     area.queueRender();
 }
 
-fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, data: *Data) callconv(.C) c_int {
-    const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
-    _ = dx;
-    var zoom = data.zoom + 8 * dy;
-    zoom = @min(MAX_ZOOM, zoom);
-    zoom = @max(MIN_ZOOM, zoom);
-    data.zoom = @floatCast(zoom);
-    data.scale = getScale(data.zoom);
-    data.scale_radius = getScaleRadius(data.scale);
+// fn handleMouseScroll(controller: *gtk.EventControllerScroll, dx: f64, dy: f64, data: *Data) callconv(.C) c_int {
+//     const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
+//     _ = dx;
+//     var zoom = data.zoom + 8 * dy;
+//     zoom = @min(MAX_ZOOM, zoom);
+//     zoom = @max(MIN_ZOOM, zoom);
+//     data.zoom = @floatCast(zoom);
+//     data.scale = getScale(data.zoom);
+//     data.scale_radius = getScaleRadius(data.scale);
 
+//     if (data.update_callback) |callback|
+//         callback(data.offset, data.zoom, data.update_callback_data);
+
+//     area.queueRender();
+
+//     return 1;
+// }
+
+fn handleMouseScroll(
+    controller: *gtk.EventControllerScroll,
+    dx: f64,
+    dy: f64,
+    data: *Data,
+    // dx: f64,
+    // dy: f64,
+    // controller: *gtk.EventControllerScroll,
+) callconv(.C) c_int {
+    const area: *gtk.GLArea = @ptrCast(gtk.EventController.getWidget(controller.as(gtk.EventController)));
+
+    _ = dx;
+
+    // const priv = self.private();
+    // const data = priv.data orelse return 1;
+
+    // Get the current scale before zoom change
+    const old_scale = data.scale;
+
+    // Calculate new zoom level (similar to your delta logic)
+    var new_zoom = data.zoom + @as(f32, @floatCast(dy * 4.0)); // Adjust multiplier as needed
+    new_zoom = @max(new_zoom, MIN_ZOOM);
+    new_zoom = @min(new_zoom, MAX_ZOOM);
+
+    if (new_zoom == data.zoom)
+        return 1;
+
+    // Get new scale
+    const new_scale = getScale(new_zoom);
+
+    // Get GLArea dimensions
+    const width = @as(f32, @floatFromInt(area.as(gtk.Widget).getAllocatedWidth()));
+    const height = @as(f32, @floatFromInt(area.as(gtk.Widget).getAllocatedHeight()));
+
+    // Calculate cursor position relative to center of canvas
+    const px = data.cursor[0] - width / 2.0;
+    const py = height / 2.0 - data.cursor[1];
+
+    // Calculate world coordinates at cursor position for both scales
+    const old_x = px / old_scale;
+    const old_y = py / old_scale;
+    const new_x = px / new_scale;
+    const new_y = py / new_scale;
+
+    // Get device pixel ratio (you may need to get this from the GLArea)
+    const device_pixel_ratio = area.as(gtk.Widget).getScaleFactor();
+    const dpr = @as(f32, @floatFromInt(device_pixel_ratio));
+
+    // Update zoom and scale
+    data.zoom = new_zoom;
+    data.scale = new_scale;
+    data.scale_radius = getScaleRadius(new_scale);
+
+    // Adjust offset to keep the same world point under the cursor
+    data.offset[0] += dpr * (new_x - old_x);
+    data.offset[1] += dpr * (new_y - old_y);
+
+    // Trigger update callback if set
     if (data.update_callback) |callback|
         callback(data.offset, data.zoom, data.update_callback_data);
 
+    // Queue render
     area.queueRender();
-
     return 1;
 }
 

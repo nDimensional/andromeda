@@ -6,7 +6,7 @@ pub const Force = @Vector(2, f32);
 
 const Params = @This();
 
-attraction: f32 = 0.0001,
-repulsion: f32 = 100.0,
-center: f32 = 1.0,
-temperature: f32 = 0.2,
+attraction: f32 = 0.00001,
+repulsion: f32 = 1.0,
+center: f32 = 0,
+temperature: f32 = 0.002,

@@ -5,8 +5,12 @@ const quadtree = @import("../../quadtree.zig");
 
 // const a: comptime_float = 0.012708355085885595;
 // const b: comptime_float = 0.790494785587651;
+
 const a: comptime_float = 0.9995310293272468;
 const b: comptime_float = 0.7972444496423875;
+
+// const a = 1.895605866250001;
+// const b = 0.8006378441402028;
 
 const e: comptime_float = 0.001;
 
@@ -25,8 +29,9 @@ pub inline fn getAttraction(repulsion: f32, attraction: f32, a_position: @Vector
     const k = attraction * weight * n / d;
     var f = @as(@Vector(2, f32), @splat(k)) * delta;
 
+    // _ = repulsion;
     const r = 2 * b / ((e + dist2) * (1 + a * std.math.pow(f32, dist, 2 * b)));
-    f += @as(@Vector(2, f32), @splat(repulsion * r * (1 - weight))) * delta;
+    f += @as(@Vector(2, f32), @splat(repulsion * r * weight)) * delta;
 
     return f * scale;
 }
