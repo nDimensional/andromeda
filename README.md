@@ -4,10 +4,10 @@ Andromeda is a high-performance force-directed graph layout engine written in Zi
 
 ![](./assets/graph-1e6.png)
 
-Zig version `0.14.0`.
+Zig version `0.14.1`.
 
 ```
-$ zig build run
+$ zig build run -Doptimize=ReleaseFast
 ```
 
 Your SQLite database should have a schema that looks like this:
